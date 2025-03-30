@@ -174,6 +174,14 @@ public class OptifineSetup {
                     out.acceptMethod(new IMappingProvider.Member(className, method.getName(from), method.getDesc(fromId)), method.getName(to));
                 }
             }
+            // TODO: automatically detect and resolve mapping conflicts in optifine patched classes
+            // 1.7.10 yarn overlap
+            out.acceptMethod(new IMappingProvider.Member("bqd", "getHeight", "()I"), "getHeight_OF");
+            out.acceptMethod(new IMappingProvider.Member("bqd", "getWidth", "()I"), "getWidth_OF");
+            // 1.12.2
+            out.acceptField(new IMappingProvider.Member("buy", "renderDistance", "I"), "renderDistance_OF");
+            out.acceptMethod(new IMappingProvider.Member("cfz", "rotate", "(Lfa;)Lfa;"), "rotate_OF");
+            out.acceptMethod(new IMappingProvider.Member("cfz", "rotate", "(Lfa;I)I"), "rotate_OF");
         };
         // return TinyRemapperMappingsHelper.create(tree, from, to);
     }
