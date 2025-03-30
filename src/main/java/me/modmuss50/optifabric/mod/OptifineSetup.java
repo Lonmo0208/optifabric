@@ -3,7 +3,7 @@ package me.modmuss50.optifabric.mod;
 import com.chocohead.mm.api.ClassTinkerers;
 import me.modmuss50.optifabric.*;
 import me.modmuss50.optifabric.patcher.*;
-import net.fabricmc.loader.api.*;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.mappingio.MappingReader;
 import net.fabricmc.mappingio.tree.*;
@@ -12,8 +12,8 @@ import net.fabricmc.tinyremapper.IMappingProvider;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.*;
-import java.nio.file.FileSystem;
 import java.nio.file.*;
+import java.nio.file.FileSystem;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,35 +21,6 @@ import java.util.zip.*;
 
 public class OptifineSetup {
     private final Path workingDir = FabricLoader.getInstance().getGameDir().resolve(".optifine");
-
-    private static Path getLaunchMinecraftJar() {
-        try {
-            // TODO: https://github.com/FabricMC/fabric-loader/pull/876
-            // return (Path) ((List<?>) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJars")).get(0);
-            return (Path) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJar");
-        } catch (NoClassDefFoundError | NoSuchMethodError old) {
-            ModContainer mod = FabricLoader.getInstance().getModContainer("minecraft").orElseThrow(() -> new IllegalStateException("no minecraft?"));
-            URI uri = mod.getRootPaths().get(0).toUri();
-            assert "jar".equals(uri.getScheme());
-
-            String path = uri.getSchemeSpecificPart();
-            int split = path.lastIndexOf("!/");
-            if (path.substring(0, split).indexOf(' ') > 0 && path.startsWith("file:///")) {
-                // this is meant to be a uri
-                Path out = Paths.get(path.substring(8, split));
-                if (Files.exists(out)) {
-                    return out;
-                }
-            }
-
-            try {
-                return Paths.get(new URI(path.substring(0, split)));
-            } catch (URISyntaxException e) {
-                throw new RuntimeException("failed to find minecraft jar from " + uri + " (calculated " + path.substring(0, split) + ')', e);
-            }
-        }
-    }
-
 
     /**
      * locates and prepares Optifine for remapping
@@ -83,7 +54,7 @@ public class OptifineSetup {
         if (OptifineVersion.jarType == OptifineVersion.JarType.OPTIFINE_INSTALLER) {
             Path optifineMod = versionDir.resolve("optifine-mod.jar");
             if (!Files.exists(optifineMod)) {
-                OptifineInstaller.extract(optifineModJar, optifineMod, this.getMinecraftJar());
+                OptifineInstaller.extract(optifineModJar, optifineMod, this.getMinecraftJar(false));
             }
             optifineModJar = optifineMod;
         }
@@ -122,7 +93,7 @@ public class OptifineSetup {
         }
 
         System.out.println("building lambda fix mappings");
-        LambdaRebuilder rebuilder = new LambdaRebuilder(jarOfTheFree, this.getMinecraftJar());
+        LambdaRebuilder rebuilder = new LambdaRebuilder(jarOfTheFree, this.getMinecraftJar(false));
         rebuilder.buildLambdaMap();
 
         System.out.println("remapping optifine with fixed lambda names");
@@ -172,7 +143,8 @@ public class OptifineSetup {
         String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
         System.out.println("remapping optifine to " + namespace);
         List<Path> mcLibs = this.getLibs();
-        mcLibs.add(this.getMinecraftJar());
+        mcLibs.remove(this.getMinecraftJar(true));
+        mcLibs.add(this.getMinecraftJar(false));
         RemapUtils.mapJar(remappedJar, input, this.createMappings("official", namespace), mcLibs);
     }
 
@@ -211,7 +183,8 @@ public class OptifineSetup {
     }
 
     // gets the official minecraft jar
-    Path getMinecraftJar() {
+    // if launch it will return named jar in dev
+    Path getMinecraftJar(boolean launch) {
         String givenJar = System.getProperty("optifabric.mc-jar");
         if (givenJar != null) {
             Path givenJarFile = Paths.get(givenJar);
@@ -222,24 +195,19 @@ public class OptifineSetup {
             }
         }
 
-        Path minecraftJar = OptifineSetup.getLaunchMinecraftJar();
-
-        // this doesn't work with the way gradle cache is set up, it should be looking in the universe loom-cache in .gradle, but instead it uses the project local one
-        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-            Path officialNames = minecraftJar.resolveSibling(String.format("minecraft-%s-client.jar", OptifineVersion.minecraftVersion));
-            if (Files.notExists(officialNames)) {
-                Path parent = minecraftJar.getParent().resolveSibling(String.format("minecraft-%s-client.jar", OptifineVersion.minecraftVersion));
-                if (Files.notExists(parent)) {
-                    Path alternativeParent = parent.resolveSibling("minecraft-client.jar");
-                    if (Files.notExists(alternativeParent)) {
-                        throw new AssertionError(String.format("unable to find minecraft dev jar! tried %s, %s and %s. please supply it explicitly with -Doptifabric.mc-jar", officialNames, parent, alternativeParent));
-                    }
-                    parent = alternativeParent;
-                }
-                officialNames = parent;
-            }
-            minecraftJar = officialNames;
+        // TODO: https://github.com/FabricMC/fabric-loader/pull/876
+        // return (Path) ((List<?>) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJars")).get(0);
+        if (!FabricLoader.getInstance().isDevelopmentEnvironment() || launch) {
+            return (Path) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJar");
         }
-        return minecraftJar;
+        // yikes
+        try {
+            URL mappings = FabricLoader.class.getClassLoader().getResource("mappings/mappings.tiny");
+            assert mappings != null;
+            JarURLConnection connection = (JarURLConnection) mappings.openConnection();
+            return Paths.get(connection.getJarFileURL().toURI()).getParent().getParent().resolve("minecraft-client.jar");
+        } catch (IOException | URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
