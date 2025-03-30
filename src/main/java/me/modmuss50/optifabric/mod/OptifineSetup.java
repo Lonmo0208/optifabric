@@ -208,7 +208,7 @@ public class OptifineSetup {
         if (!FabricLoader.getInstance().isDevelopmentEnvironment() || launch) {
             return (Path) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJar");
         }
-        // yikes
+        // TODO: remap given jar to official if it's not instead of this atrocity
         try {
             URL mappings = FabricLoader.class.getClassLoader().getResource("mappings/mappings.tiny");
             assert mappings != null;
