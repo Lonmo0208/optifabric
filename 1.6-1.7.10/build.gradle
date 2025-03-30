@@ -8,3 +8,7 @@ dependencies {
     mappings(legacy.yarn(minecraft_version, yarn_build))
     implementation project(path: ":", configuration: "namedElements")
 }
+
+loom {
+    runs.client.programArgs "--userProperties", "{}"
+}
