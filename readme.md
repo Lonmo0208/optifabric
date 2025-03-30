@@ -1,6 +1,6 @@
-## Legacy Optifabric
+## Legacy OptiFabric
 
-Optifabric for Legacy Fabric (1.3-1.13.2) and Ornithe (1.0-1.13.2)
+OptiFabric for Legacy Fabric (1.3-1.13.2) and Ornithe (1.0-1.13.2)
 
 based on the work of [RedLime's OptiFabric-Pre1.14](https://github.com/RedLime/OptiFabric-Pre1.14), a fork of [hYdos's OptiFabric 1.8.9](https://github.com/hYdos/OptiFabric) which
 in turn is a derivative of [modmuss' original OptiFabric](https://github.com/modmuss50/OptiFabric)
