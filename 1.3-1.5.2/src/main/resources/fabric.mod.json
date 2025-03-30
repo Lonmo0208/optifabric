@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "optifabric-mixin",
   "version": "${version}",
-  "name": "Optifabric Mixin",
-  "description": "Optifabric is a mod that loads Optifine into Fabric",
+  "name": "OptiFabric Mixin",
+  "description": "OptiFabric is a mod that loads Optifine into Fabric",
   "authors": [
     "Modmuss50",
     "Chocohead",
