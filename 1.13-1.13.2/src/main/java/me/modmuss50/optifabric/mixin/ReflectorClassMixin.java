@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 // suppresses some warnings in the log
 @Pseudo
-@Mixin(targets = "net.optifine.reflect.ReflectorClass")
+@Mixin(targets = "net.optifine.reflect.ReflectorClass", remap = false)
 public class ReflectorClassMixin {
     @Shadow
     private String targetClassName;
@@ -15,7 +15,7 @@ public class ReflectorClassMixin {
     private boolean checked;
 
     @SuppressWarnings("UnresolvedMixinReference")
-    @Inject(method = "getTargetClass", at = @At("HEAD"), remap = false)
+    @Inject(method = "getTargetClass", at = @At("HEAD"))
     private void getTargetClass(CallbackInfoReturnable<Class<?>> infoReturnable) {
         if (!this.checked) { // only check the target if it hasn't been done yet
             String name = this.targetClassName.replaceAll("/", ".");

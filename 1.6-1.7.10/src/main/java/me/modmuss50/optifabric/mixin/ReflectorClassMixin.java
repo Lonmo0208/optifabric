@@ -8,7 +8,7 @@ import java.lang.reflect.Field;
 
 // suppresses some warnings in the logs
 @Pseudo
-@Mixin(targets = "ReflectorClass")
+@Mixin(targets = "ReflectorClass", remap = false)
 public class ReflectorClassMixin {
     @Unique
     private String targetClassName;
@@ -17,7 +17,7 @@ public class ReflectorClassMixin {
     private boolean checked;
 
     @SuppressWarnings("UnresolvedMixinReference")
-    @Inject(method = "getTargetClass", at = @At("HEAD"), remap = false)
+    @Inject(method = "getTargetClass", at = @At("HEAD"))
     private void getTargetClass(CallbackInfoReturnable<Class<?>> infoReturnable) {
         if (this.targetClassName == null) {
             this.targetClassName = this.getTargetClassName();

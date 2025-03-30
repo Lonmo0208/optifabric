@@ -8,3 +8,7 @@ dependencies {
     mappings "net.ornithemc:feather:$minecraft_version+build.$feather_build:v2"
     implementation project(path: ":", configuration: "namedElements")
 }
+
+loom {
+    runs.client.programArgs "--userProperties", "{}"
+}
