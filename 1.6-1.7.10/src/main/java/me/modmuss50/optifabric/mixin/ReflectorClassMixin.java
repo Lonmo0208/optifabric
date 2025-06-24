@@ -16,7 +16,7 @@ public class ReflectorClassMixin {
     @Shadow
     private boolean checked;
 
-    @SuppressWarnings("UnresolvedMixinReference")
+    @Dynamic
     @Inject(method = "getTargetClass", at = @At("HEAD"))
     private void getTargetClass(CallbackInfoReturnable<Class<?>> infoReturnable) {
         if (this.targetClassName == null) {
