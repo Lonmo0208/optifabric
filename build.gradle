@@ -1,6 +1,5 @@
 plugins {
     id "loom"
-    id "legacy-looming"
 }
 
 version = "$mod_version+$target_version"

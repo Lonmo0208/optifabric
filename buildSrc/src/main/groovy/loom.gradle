@@ -1,5 +1,6 @@
 plugins {
     id "fabric-loom"
+    id "legacy-looming"
     id "maven-publish"
 }
 

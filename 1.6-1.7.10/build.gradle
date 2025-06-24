@@ -1,6 +1,5 @@
 plugins {
     id "loom"
-    id "legacy-looming"
 }
 
 dependencies {
