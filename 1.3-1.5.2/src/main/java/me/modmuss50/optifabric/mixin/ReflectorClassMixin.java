@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class ReflectorClassMixin {
     @SuppressWarnings("UnresolvedMixinReference")
     @Redirect(method = "getTargetClass", at = @At(value = "INVOKE", target = "Ljava/lang/Class;forName(Ljava/lang/String;)Ljava/lang/Class;", remap = false), remap = false)
-    private Class fixClassNameForFabricatedForge(String className) throws ClassNotFoundException {
+    private Class<?> fixClassNameForFabricatedForge(String className) throws ClassNotFoundException {
         try {
             return Class.forName(className);
         } catch (ClassNotFoundException exception) {
@@ -22,6 +22,5 @@ public abstract class ReflectorClassMixin {
                 throw exception;
             }
         }
-
     }
 }
