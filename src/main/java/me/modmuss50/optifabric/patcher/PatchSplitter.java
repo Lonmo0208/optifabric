@@ -4,8 +4,8 @@ import me.modmuss50.optifabric.IOUtils;
 import me.modmuss50.optifabric.mod.Optifabric;
 
 import java.io.*;
-import java.nio.file.FileSystem;
 import java.nio.file.*;
+import java.nio.file.FileSystem;
 import java.util.jar.JarFile;
 
 // pulls out the patched classes and saves into a classCache, and also creates an optifine jar without these classes

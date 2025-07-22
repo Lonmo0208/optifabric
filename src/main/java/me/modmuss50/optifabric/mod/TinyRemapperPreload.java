@@ -1,9 +1,6 @@
 package me.modmuss50.optifabric.mod;
 
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
-import net.fabricmc.tinyremapper.InputTag;
-import net.fabricmc.tinyremapper.OutputConsumerPath.Builder;
 
 import java.util.Arrays;
 
