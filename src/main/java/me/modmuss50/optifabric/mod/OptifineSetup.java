@@ -90,6 +90,29 @@ public class OptifineSetup {
             for (String s : Optifabric.getExcludedClasses()) {
                 Files.deleteIfExists(fs.getPath(s));
             }
+
+            if ("1.1".equals(OptifineVersion.version.split("_")[1])) {
+                Path gameOption = fs.getPath("xt.class");
+                if (Files.exists(gameOption)) {
+                    byte[] bytes = Files.readAllBytes(gameOption);
+                    byte[] target = "Signature".getBytes(StandardCharsets.UTF_8);
+                    byte[] replacement = "Notanattr".getBytes(StandardCharsets.UTF_8);
+                    outer:
+                    for (int i = 0; i < bytes.length - target.length; ++i) {
+                        for (int j = 0; j < target.length - 1; ++j) {
+                            if (bytes[i + j] != target[j]) {
+                                continue outer;
+                            }
+                        }
+
+                        for (byte b : replacement) {
+                            bytes[i++] = b;
+                        }
+                        break;
+                    }
+                    Files.write(gameOption, bytes);
+                }
+            }
         }
 
         System.out.println("building lambda fix mappings");
