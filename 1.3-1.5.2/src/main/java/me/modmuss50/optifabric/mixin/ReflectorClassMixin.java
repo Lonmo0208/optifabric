@@ -1,10 +1,8 @@
 package me.modmuss50.optifabric.mixin;
 
 import net.fabricmc.loader.api.FabricLoader;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Pseudo;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.injection.*;
 
 /* Optifine 1.4.3+ */
 @Pseudo

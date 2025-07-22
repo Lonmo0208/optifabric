@@ -3,7 +3,7 @@ package me.modmuss50.optifabric.patcher;
 import net.fabricmc.tinyremapper.*;
 import org.objectweb.asm.tree.*;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.*;
