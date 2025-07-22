@@ -3,7 +3,7 @@ package me.modmuss50.optifabric.mod;
 import com.chocohead.mm.api.ClassTinkerers;
 import me.modmuss50.optifabric.*;
 import me.modmuss50.optifabric.patcher.*;
-import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.*;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import net.fabricmc.mappingio.MappingReader;
 import net.fabricmc.mappingio.tree.*;
@@ -11,7 +11,7 @@ import net.fabricmc.tinyremapper.IMappingProvider;
 
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.FileSystem;
 import java.security.NoSuchAlgorithmException;
@@ -107,7 +107,8 @@ public class OptifineSetup {
         // we are done, lets get rid of the stuff we no longer need
         Files.deleteIfExists(lambdaFixJar);
         Files.deleteIfExists(jarOfTheFree);
-        if (OptifineVersion.jarType == OptifineVersion.JarType.OPTIFINE_INSTALLER) {
+        boolean keepExtractedJar = Boolean.parseBoolean(System.getProperty("optifabric.keepExtractedJar", "false"));
+        if (OptifineVersion.jarType == OptifineVersion.JarType.OPTIFINE_INSTALLER && !keepExtractedJar) {
             Files.deleteIfExists(optifineModJar);
         }
 
@@ -140,15 +141,26 @@ public class OptifineSetup {
     }
 
     private void remapOptifine(Path input, Path remappedJar) throws IOException {
-        String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
-        System.out.println("remapping optifine to " + namespace);
+        MappingResolver mappingResolver = FabricLoader.getInstance().getMappingResolver();
+        String namespace = mappingResolver.getCurrentRuntimeNamespace();
+        System.out.println("remapping OptiFine to " + namespace);
         List<Path> mcLibs = this.getLibs();
         mcLibs.remove(this.getMinecraftJar(true));
         mcLibs.add(this.getMinecraftJar(false));
-        RemapUtils.mapJar(remappedJar, input, this.createMappings("official", namespace), mcLibs);
+        System.out.println("remapping Minecraft to " + namespace);
+        Collection<String> namespaces = mappingResolver.getNamespaces();
+        String target;
+        if (namespaces.contains("official")) {
+            target = "official";
+        } else if (namespaces.contains("clientOfficial")) {
+            target = "clientOfficial";
+        } else {
+            throw new IllegalStateException("mappings have no obfuscated namespace?");
+        }
+        RemapUtils.mapJar(remappedJar, input, this.createMappings(target, namespace, true), mcLibs);
     }
 
-    IMappingProvider createMappings(@SuppressWarnings("SameParameterValue") String from, String to) throws IOException {
+    IMappingProvider createMappings(String from, String to, boolean forOptiFine) throws IOException {
         MemoryMappingTree tree = new MemoryMappingTree();
         try (InputStream mappings = FabricLoader.class.getClassLoader().getResourceAsStream("mappings/mappings.tiny")) {
             // you've got bigger problems if you don't have a mappings set
@@ -159,6 +171,7 @@ public class OptifineSetup {
         return (out) -> {
             for (MappingTree.ClassMapping classDef : tree.getClasses()) {
                 String className = classDef.getName(from);
+
                 out.acceptClass(className, classDef.getName(to));
 
                 for (MappingTree.FieldMapping field : classDef.getFields()) {
@@ -166,16 +179,21 @@ public class OptifineSetup {
                 }
 
                 for (MappingTree.MethodMapping method : classDef.getMethods()) {
-                    // cwv.a(II)Z now overrides ayl.a(II)Z, need to remove the mapping
-                    // for 1.13.2
-                    if ("cwv".equals(className) && "a".equals(method.getName(from)) && "(II)Z".equals(method.getDesc(fromId))) {
+                    if (method.getName(from) == null || method.getName(to) == null) {
+                        continue;
+                    }
+                    // 1.13.2: cwv.a(II)Z now overrides ayl.a(II)Z, need to remove the mapping
+                    if (forOptiFine && "cwv".equals(className) && "a".equals(method.getName(from)) && "(II)Z".equals(method.getDesc(fromId))) {
                         continue;
                     }
                     out.acceptMethod(new IMappingProvider.Member(className, method.getName(from), method.getDesc(fromId)), method.getName(to));
                 }
             }
+
+            if (!forOptiFine) return;
+
+            // TODO: automatically detect and resolve mapping conflicts in optifine patched classes
         };
-        // return TinyRemapperMappingsHelper.create(tree, from, to);
     }
 
     List<Path> getLibs() {
@@ -184,7 +202,7 @@ public class OptifineSetup {
 
     // gets the official minecraft jar
     // if launch it will return named jar in dev
-    Path getMinecraftJar(boolean launch) {
+    Path getMinecraftJar(boolean launch) throws IOException {
         String givenJar = System.getProperty("optifabric.mc-jar");
         if (givenJar != null) {
             Path givenJarFile = Paths.get(givenJar);
@@ -195,19 +213,28 @@ public class OptifineSetup {
             }
         }
 
-        // TODO: https://github.com/FabricMC/fabric-loader/pull/876
-        // return (Path) ((List<?>) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJars")).get(0);
+        Path gameJar = (Path) ((List<?>) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJars")).get(0);
         if (!FabricLoader.getInstance().isDevelopmentEnvironment() || launch) {
-            return (Path) FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJar");
+            return gameJar;
         }
-        // TODO: remap given jar to official if it's not instead of this atrocity
-        try {
-            URL mappings = FabricLoader.class.getClassLoader().getResource("mappings/mappings.tiny");
-            assert mappings != null;
-            JarURLConnection connection = (JarURLConnection) mappings.openConnection();
-            return Paths.get(connection.getJarFileURL().toURI()).getParent().getParent().resolve("minecraft-client.jar");
-        } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException(e);
+
+        Path versionDir = this.workingDir.resolve(OptifineVersion.version);
+        Path remappedGameJar = versionDir.resolve("remapped-mc.jar");
+        if (Files.exists(remappedGameJar)) return remappedGameJar; // users are going to have to manually delete this if they update their mappings
+
+        MappingResolver mappingResolver = FabricLoader.getInstance().getMappingResolver();
+        String namespace = mappingResolver.getCurrentRuntimeNamespace();
+        System.out.println("remapping Minecraft to " + namespace);
+        Collection<String> namespaces = mappingResolver.getNamespaces();
+        String target;
+        if (namespaces.contains("official")) {
+            target = "official";
+        } else if (namespaces.contains("clientOfficial")) {
+            target = "clientOfficial";
+        } else {
+            throw new IllegalStateException("mappings have no obfuscated namespace?");
         }
+        RemapUtils.mapJar(remappedGameJar, gameJar, this.createMappings(namespace, target, false), Collections.emptyList());
+        return remappedGameJar;
     }
 }

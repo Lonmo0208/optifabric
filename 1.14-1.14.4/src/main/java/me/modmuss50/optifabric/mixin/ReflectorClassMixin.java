@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 // suppresses some warnings in the log
 @Pseudo
-@Mixin(targets = "net.optifine.reflect.ReflectorClass")
+@Mixin(targets = "net.optifine.reflect.ReflectorClass", remap = false)
 public class ReflectorClassMixin {
     @Shadow
     private String targetClassName;

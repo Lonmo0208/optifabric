@@ -34,9 +34,7 @@ commons, which older minecraft versions don't provide.
 
 ## notes
 
-- this does not work for any optifine releases for minecraft 1.1 except for the optifine light edition due to some method signature crash ([log](optifabric-hd-1.1-crash.log))
-  outside my control
-- this mod does not work in dev or named environments, if someone fixes that do make a pull request
+- this mod does not work in dev or named environments, soon?
 - the accessWideners are created based on the output of tiny remapper's checkPackageAccess option, but they cannot ever be 100% complete. if you have a crash that has to do with and invalid access, report it and it may be able to be fixed.
 
 ## class excluder

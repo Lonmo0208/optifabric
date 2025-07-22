@@ -100,8 +100,8 @@ public class OptifineVersion {
 
         FabricLoader.getInstance().getModContainer("minecraft").ifPresent(minecraft -> {
             try {
-                if (!minecraft.getMetadata().getVersion().equals(Version.parse(minecraftVersion))) {
-                    System.err.printf("this version of optifine is not compatible with the current minecraft version\noptifine requires %s, but you have %s", minecraftVersion, version);
+                if (!"old".equals(minecraftVersion) && !minecraft.getMetadata().getVersion().equals(Version.parse(minecraftVersion))) {
+                    System.err.printf("this version of OptiFine is not compatible with the current minecraft version\nOptiFine requires %s, but you have %s\n", minecraftVersion, version);
                 }
             } catch (VersionParsingException e) {
                 System.err.println("minecraft version could not be parsed");

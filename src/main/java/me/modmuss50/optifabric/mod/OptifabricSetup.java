@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@SuppressWarnings("unused")
 public class OptifabricSetup implements Runnable {
     public static final String OPTIFABRIC_INCOMPATIBLE = "optifabric:incompatible";
     public static Path optifineRuntimeJar = null;
@@ -43,9 +42,9 @@ public class OptifabricSetup implements Runnable {
         } catch (Throwable e) {
             if (!Optifabric.hasError()) {
                 OptifineVersion.jarType = OptifineVersion.JarType.INCOMPATIBLE;
-                Optifabric.error = "Failed to load optifine, check the log for more info \n\n " + e.getMessage();
+                Optifabric.error = "Failed to load OptiFine, check the log for more info \n\n " + e.getMessage();
             }
-            throw new RuntimeException("Failed to setup optifine", e);
+            throw new RuntimeException("Failed to setup OptiFine", e);
         }
         if (hasOptifineMixins()) {
             Mixins.addConfiguration(optifineMixinConfiguration);
@@ -61,8 +60,8 @@ public class OptifabricSetup implements Runnable {
         if (!incompatibleMods.isEmpty()) {
             OptifineVersion.jarType = OptifineVersion.JarType.INCOMPATIBLE;
             StringBuilder errorMessage = new StringBuilder()
-                    .append("one or more mods have stated they are incompatible with Optifabric").append("\n")
-                    .append("please remove Optifabric or the following mods:").append("\n");
+                    .append("one or more mods have stated they are incompatible with OptiFabric").append("\n")
+                    .append("please remove OptiFabric or the following mods:").append("\n");
             incompatibleMods.forEach(errorMessage::append);
             Optifabric.error = errorMessage.toString();
             return false;

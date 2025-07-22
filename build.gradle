@@ -13,6 +13,6 @@ dependencies {
     include(implementation "net.fabricmc:tiny-remapper:$tiny_remapper_version")
 
     subprojects.forEach {
-        include project(path: it.path, configuration: "namedElements")
+        include it
     }
 }
