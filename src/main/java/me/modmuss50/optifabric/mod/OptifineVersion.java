@@ -50,8 +50,8 @@ public class OptifineVersion {
             return optifineJar.get();
         }
 
-        Optifabric.error = "optifabric could not find the OptiFine jar in the mods folder.";
-        throw new FileNotFoundException("could not find Optiine jar");
+        Optifabric.error = "OptiFabric could not find the OptiFine jar in the mods folder.";
+        throw new FileNotFoundException("could not find OptiFine jar");
     }
 
     private static JarType getJarType(Path file) {

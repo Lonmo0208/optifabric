@@ -13,7 +13,7 @@ public abstract class TitleScreenMixin extends Screen {
     @Inject(method = "init", at = @At("RETURN"))
     private void init(CallbackInfo info) {
         if (Optifabric.hasError()) {
-            System.out.println("an optifabric error has occurred");
+            System.out.println("an OptiFabric error has occurred");
         }
     }
 

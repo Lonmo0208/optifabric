@@ -3,7 +3,7 @@
   "id": "optifabric-mixin",
   "version": "${version}",
   "name": "OptiFabric Mixin",
-  "description": "OptiFabric is a mod that loads Optifine into Fabric",
+  "description": "OptiFabric is a mod that loads OptiFine into Fabric",
   "authors": [
     "Modmuss50",
     "Chocohead",
