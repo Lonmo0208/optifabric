@@ -178,7 +178,7 @@ public class OptifineSetup {
                 }
 
                 for (MappingTree.MethodMapping method : classDef.getMethods()) {
-                    if (method.getName(from) == null || method.getName(to) == null) {
+                    if (method.getName(from) == null || method.getName(to) == null /* || method.getName(from).equals(method.getName(to)) */) {
                         continue;
                     }
                     // System.out.println("from: " + method.getName(from) + ", to: " + method.getName(to));

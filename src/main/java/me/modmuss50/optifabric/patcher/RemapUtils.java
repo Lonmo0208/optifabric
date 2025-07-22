@@ -19,6 +19,7 @@ public class RemapUtils {
                 .rebuildSourceFilenames(true)
                 .checkPackageAccess(true)
                 .fixPackageAccess(true)
+                .ignoreConflicts(true)
                 .build();
         try {
             OutputConsumerPath outputConsumer = new OutputConsumerPath.Builder(output).build();
