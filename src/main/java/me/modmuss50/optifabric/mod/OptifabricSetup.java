@@ -25,9 +25,7 @@ public class OptifabricSetup implements Runnable {
             return;
         }
         if (JavaVersion.current() >= JavaVersion.JAVA_9) {
-            AddOpens.open("java.base", "jdk.internal.misc");
-            AddOpens.open("java.base", "jdk.internal.access");
-            AddOpens.open("java.base", "java.nio");
+            AddOpens.open("java.base", "jdk.internal.misc", "jdk.internal.access", "java.nio");
         }
         try {
             Pair<Path, ClassCache> runtime = new OptifineSetup().getRuntime();
