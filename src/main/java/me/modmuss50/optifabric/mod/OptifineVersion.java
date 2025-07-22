@@ -86,20 +86,10 @@ public class OptifineVersion {
             return JarType.INCOMPATIBLE;
         }
 
-        if ("old".equals(minecraftVersion)) {
-            try {
-                String candidateVersion = version.split("_")[1];
-                Version.parse(candidateVersion);
-                minecraftVersion = candidateVersion;
-            } catch (ArrayIndexOutOfBoundsException | VersionParsingException e) {
-                System.err.println("Unknown version format: " + version);
-            }
-        }
-
         FabricLoader.getInstance().getModContainer("minecraft").ifPresent(minecraft -> {
             try {
                 if (!minecraft.getMetadata().getVersion().equals(Version.parse(minecraftVersion))) {
-                    System.err.printf("this version of optifine is not compatible with the current minecraft version\noptifine requires %s, but you have %s", minecraftVersion, version);
+                    System.err.printf("this version of OptiFine is not compatible with the current minecraft version\nOptiFine requires %s, but you have %s\n", minecraftVersion, version);
                 }
             } catch (VersionParsingException e) {
                 System.err.println("minecraft version could not be parsed");

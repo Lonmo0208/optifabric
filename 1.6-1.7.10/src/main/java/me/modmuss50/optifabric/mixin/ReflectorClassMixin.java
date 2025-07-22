@@ -10,15 +10,20 @@ import java.lang.reflect.Field;
 @Pseudo
 @Mixin(targets = "ReflectorClass", remap = false)
 public class ReflectorClassMixin {
+    @Unique
+    private String targetClassName;
+
     @Shadow
     private boolean checked;
 
     @Dynamic
     @Inject(method = "getTargetClass", at = @At("HEAD"))
     private void getTargetClass(CallbackInfoReturnable<Class<?>> infoReturnable) {
-        String targetClassName = this.getTargetClassName();
+        if (this.targetClassName == null) {
+            this.targetClassName = this.getTargetClassName();
+        }
         if (!this.checked) { // only check the target if it hasn't been done yet
-            String name = targetClassName.replaceAll("/", ".");
+            String name = this.targetClassName.replaceAll("/", ".");
             if (name.startsWith("net.minecraft.launchwrapper") || name.startsWith("net.minecraftforge") || "optifine.OptiFineClassTransformer".equals(name)) {
                 this.checked = true;
             }
