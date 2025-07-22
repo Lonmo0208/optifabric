@@ -39,14 +39,14 @@ public class OptifineSetup {
             classCache = ClassCache.read(optifinePatches.toFile());
             // validate that the class cache found is for the same input jar
             if (!Arrays.equals(classCache.getHash(), modHash)) {
-                System.out.println("class cache is from a different optifine jar, deleting and re-generating");
+                System.out.println("class cache is from a different OptiFine jar, deleting and re-generating");
                 classCache = null;
                 Files.delete(optifinePatches);
             }
         }
 
         if (Files.exists(remappedJar) && classCache != null) {
-            System.out.println("found existing patched optifine jar, using that");
+            System.out.println("found existing patched OptiFine jar, using that");
             return new Pair<>(remappedJar, classCache);
         }
 
@@ -58,7 +58,7 @@ public class OptifineSetup {
             optifineModJar = optifineMod;
         }
 
-        System.out.println("setting up optifine for the first time, this may take a few seconds");
+        System.out.println("setting up OptiFine for the first time, this may take a few seconds");
 
         // a jar without srgs
         Path jarOfTheFree = versionDir.resolve("optifine-jar-of-the-free.jar");
@@ -95,7 +95,7 @@ public class OptifineSetup {
         LambdaRebuilder rebuilder = new LambdaRebuilder(jarOfTheFree, this.getMinecraftJar(false));
         rebuilder.buildLambdaMap();
 
-        System.out.println("remapping optifine with fixed lambda names");
+        System.out.println("remapping OptiFine with fixed lambda names");
         Path lambdaFixJar = versionDir.resolve("optifine-lambda-fix.jar");
         RemapUtils.mapJar(lambdaFixJar, jarOfTheFree, rebuilder, this.getLibs());
 
@@ -113,7 +113,7 @@ public class OptifineSetup {
 
         // TODO: for extract, make a remapped jar containing both class sets instead of individual files
         if (Boolean.parseBoolean(System.getProperty("optifabric.extract", "false"))) {
-            System.out.println("extracting optifine classes");
+            System.out.println("extracting OptiFine classes");
             Path optifineClasses = versionDir.resolve("optifine-classes");
             if (Files.exists(optifineClasses)) {
                 IOUtils.deleteDirectory(optifineClasses);
@@ -159,6 +159,7 @@ public class OptifineSetup {
         return (out) -> {
             for (MappingTree.ClassMapping classDef : tree.getClasses()) {
                 String className = classDef.getName(from);
+
                 out.acceptClass(className, classDef.getName(to));
 
                 for (MappingTree.FieldMapping field : classDef.getFields()) {
@@ -166,6 +167,9 @@ public class OptifineSetup {
                 }
 
                 for (MappingTree.MethodMapping method : classDef.getMethods()) {
+                    if (method.getName(from) == null || method.getName(to) == null) {
+                        continue;
+                    }
                     System.out.println("from: " + method.getName(from) + ", to: " + method.getName(to));
                     // 1.13.2: cwv.a(II)Z now overrides ayl.a(II)Z, need to remove the mapping
                     if (forOptiFine && "cwv".equals(className) && "a".equals(method.getName(from)) && "(II)Z".equals(method.getDesc(fromId))) {
