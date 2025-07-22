@@ -45,6 +45,7 @@ public class OptifabricSetup implements Runnable {
             throw new RuntimeException("Failed to setup OptiFine", e);
         }
         if (hasOptifineMixins()) {
+            // TODO: this is too late for the Patcher mixins to work, however I don't know if there's even any hope to get them to work mid-preLaunch
             Mixins.addConfiguration(optifineMixinConfiguration);
         }
     }

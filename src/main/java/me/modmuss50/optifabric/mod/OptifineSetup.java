@@ -202,7 +202,7 @@ public class OptifineSetup {
                 }
 
                 for (MappingTree.MethodMapping method : classDef.getMethods()) {
-                    if (method.getName(from) == null || method.getName(to) == null) {
+                    if (method.getName(from) == null || method.getName(to) == null /* || method.getName(from).equals(method.getName(to)) */) {
                         continue;
                     }
                     // 1.13.2: cwv.a(II)Z now overrides ayl.a(II)Z, need to remove the mapping
