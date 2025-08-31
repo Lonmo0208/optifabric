@@ -146,7 +146,6 @@ public class OptifineSetup {
         List<Path> mcLibs = this.getLibs();
         mcLibs.remove(this.getMinecraftJar(true));
         mcLibs.add(this.getMinecraftJar(false));
-        System.out.println("remapping Minecraft to " + namespace);
         Collection<String> namespaces = mappingResolver.getNamespaces();
         String target;
         if (namespaces.contains("official")) {
