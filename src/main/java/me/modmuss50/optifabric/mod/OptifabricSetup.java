@@ -40,7 +40,12 @@ public class OptifabricSetup implements Runnable {
         } catch (Throwable e) {
             if (!Optifabric.hasError()) {
                 OptifineVersion.jarType = OptifineVersion.JarType.INCOMPATIBLE;
-                Optifabric.error = "Failed to load OptiFine, check the log for more info \n\n " + e.getMessage();
+                // 更友好的错误信息
+                String errorMsg = e.getMessage();
+                if (errorMsg != null && errorMsg.contains("version")) {
+                    errorMsg = "Version mismatch detected, but attempting to force load. Error: " + errorMsg;
+                }
+                Optifabric.error = "Failed to load OptiFine, check the log for more info \n\n " + errorMsg;
             }
             throw new RuntimeException("Failed to setup OptiFine", e);
         }

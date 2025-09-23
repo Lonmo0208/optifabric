@@ -86,13 +86,15 @@ public class OptifineVersion {
             return JarType.INCOMPATIBLE;
         }
 
+        // 跳过版本检查，允许1.8.9的OptiFine在1.8.8上运行
         FabricLoader.getInstance().getModContainer("minecraft").ifPresent(minecraft -> {
             try {
                 if (!minecraft.getMetadata().getVersion().equals(Version.parse(minecraftVersion))) {
-                    System.err.printf("this version of OptiFine is not compatible with the current minecraft version\nOptiFine requires %s, but you have %s\n", minecraftVersion, version);
+                    System.err.printf("WARNING: OptiFine version mismatch - OptiFine is for %s, but Minecraft is %s. Forcing load anyway.\n", minecraftVersion, minecraft.getMetadata().getVersion());
+                    // 不设置错误，继续加载
                 }
             } catch (VersionParsingException e) {
-                System.err.println("minecraft version could not be parsed");
+                System.err.println("WARNING: Minecraft version could not be parsed, but continuing anyway.");
             }
         });
 

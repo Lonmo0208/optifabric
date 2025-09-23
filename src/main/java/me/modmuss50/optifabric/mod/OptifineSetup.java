@@ -59,6 +59,7 @@ public class OptifineSetup {
         }
 
         System.out.println("setting up OptiFine for the first time, this may take a few seconds");
+        System.out.println("WARNING: Forcing load of OptiFine " + OptifineVersion.version + " for Minecraft " + OptifineVersion.minecraftVersion + " on different Minecraft version");
 
         // a jar without srgs
         Path jarOfTheFree = versionDir.resolve("optifine-jar-of-the-free.jar");
