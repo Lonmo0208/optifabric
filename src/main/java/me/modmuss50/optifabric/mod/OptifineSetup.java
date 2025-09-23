@@ -30,8 +30,13 @@ public class OptifineSetup {
         Files.createDirectories(this.workingDir);
         Path optifineModJar = OptifineVersion.findOptifineJar();
         byte[] modHash = IOUtils.fileHash(optifineModJar);
-        Path versionDir = this.workingDir.resolve(OptifineVersion.version);
+
+        // 使用更安全的版本目录名
+        String safeVersion = OptifineVersion.version != null ?
+                OptifineVersion.version.replaceAll("[^a-zA-Z0-9.-]", "_") : "unknown";
+        Path versionDir = this.workingDir.resolve(safeVersion);
         Files.createDirectories(versionDir);
+
         Path remappedJar = versionDir.resolve("optifine-mapped.jar");
         Path optifinePatches = versionDir.resolve("optifine.classes");
         ClassCache classCache = null;
@@ -59,7 +64,8 @@ public class OptifineSetup {
         }
 
         System.out.println("setting up OptiFine for the first time, this may take a few seconds");
-        System.out.println("WARNING: Forcing load of OptiFine " + OptifineVersion.version + " for Minecraft " + OptifineVersion.minecraftVersion + " on different Minecraft version");
+        System.out.println("WARNING: Forcing load of OptiFine " + OptifineVersion.version +
+                " (designed for " + OptifineVersion.minecraftVersion + ") on current Minecraft version");
 
         // a jar without srgs
         Path jarOfTheFree = versionDir.resolve("optifine-jar-of-the-free.jar");
@@ -200,6 +206,13 @@ public class OptifineSetup {
             out.acceptField(new IMappingProvider.Member("buy", "renderDistance", "I"), "renderDistance_OF");
             out.acceptMethod(new IMappingProvider.Member("cfz", "rotate", "(Lfa;)Lfa;"), "rotate_OF");
             out.acceptMethod(new IMappingProvider.Member("cfz", "rotate", "(Lfa;I)I"), "rotate_OF");
+
+            // 添加对1.8.9特定字段访问的修复
+            if (OptifineVersion.minecraftVersion != null && OptifineVersion.minecraftVersion.contains("1.8.9")) {
+                System.out.println("Applying 1.8.9 specific field access fixes");
+                // 这些是日志中出现的受保护字段，我们需要为它们创建映射
+                out.acceptField(new IMappingProvider.Member("biz", "c", "F"), "c_OF");
+            }
         };
     }
 
@@ -225,7 +238,8 @@ public class OptifineSetup {
             return gameJar;
         }
 
-        Path versionDir = this.workingDir.resolve(OptifineVersion.version);
+        Path versionDir = this.workingDir.resolve(OptifineVersion.version != null ?
+                OptifineVersion.version.replaceAll("[^a-zA-Z0-9.-]", "_") : "unknown");
         Path remappedGameJar = versionDir.resolve("remapped-mc.jar");
         if (Files.exists(remappedGameJar)) return remappedGameJar; // users are going to have to manually delete this if they update their mappings
 

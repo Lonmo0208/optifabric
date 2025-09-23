@@ -2,7 +2,7 @@ package me.modmuss50.optifabric.mod;
 
 import net.fabricmc.api.*;
 import net.fabricmc.loader.api.FabricLoader;
-import org.spongepowered.include.com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonReader;
 
 import java.io.*;
 import java.nio.file.*;
@@ -32,6 +32,17 @@ public class Optifabric {
             }
         } catch (IOException ignored) {
         }
+
+        // 添加对1.8.9特定字段访问问题的排除类
+        if (!excludedClasses.containsKey("1.8.9_HD_U_M5")) {
+            List<String> classes = new ArrayList<>();
+            // 添加有字段访问问题的类到排除列表
+            classes.add("net/optifine/entity/model/ModelAdapterPigZombie.class");
+            classes.add("net/optifine/entity/model/ModelAdapterEndermite.class");
+            classes.add("net/optifine/entity/model/ModelAdapterBoat.class");
+            // 可以根据需要添加更多有问题的类
+            excludedClasses.put("1.8.9_HD_U_M5", classes);
+        }
     }
 
     public static boolean hasError() {
@@ -39,6 +50,7 @@ public class Optifabric {
     }
 
     public static List<String> getExcludedClasses() {
-        return excludedClasses.getOrDefault(OptifineVersion.version, Collections.emptyList());
+        String versionKey = OptifineVersion.version != null ? OptifineVersion.version : "default";
+        return excludedClasses.getOrDefault(versionKey, Collections.emptyList());
     }
 }
