@@ -2,7 +2,7 @@ package me.modmuss50.optifabric.mod;
 
 import net.fabricmc.api.*;
 import net.fabricmc.loader.api.FabricLoader;
-import com.google.gson.stream.JsonReader;
+import org.spongepowered.include.com.google.gson.stream.JsonReader;
 
 import java.io.*;
 import java.nio.file.*;
