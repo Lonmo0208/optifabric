@@ -114,14 +114,14 @@ public class OptifineVersion {
 			e.printStackTrace();
 			return JarType.INTERNAL_ERROR;
 		}
-		
-		if (!currentMcVersion.startsWith("1.16.") || !minecraftVersion.startsWith("1.16.")) {
-			if (!currentMcVersion.equals(minecraftVersion)) {
-				OptifabricError.setError("This version of OptiFine from %s is not compatible with the current minecraft version\n\nOptifine requires %s you are running %s",
-						file, minecraftVersion, currentMcVersion);
-				return JarType.INCOMPATIBLE;
-			}
+
+		// 强制绕过版本检查 - 全版本通用
+		// 只输出警告信息，但不阻止加载
+		if (!currentMcVersion.equals(minecraftVersion)) {
+			System.out.println("[OptiFabric] 警告: 版本不匹配 - OptiFine需要 " + minecraftVersion + "，但当前运行的是 " + currentMcVersion);
+			System.out.println("[OptiFabric] 警告: 强制注入可能不稳定，请谨慎使用！");
 		}
+
 		MutableBoolean isInstaller = new MutableBoolean(false);
 		ZipUtils.iterateContents(file, (zip, zipEntry) -> {
 			if (zipEntry.getName().startsWith("patch/")) {
