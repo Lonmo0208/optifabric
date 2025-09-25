@@ -115,11 +115,16 @@ public class OptifineVersion {
 			return JarType.INTERNAL_ERROR;
 		}
 
-		if (!currentMcVersion.equals(minecraftVersion)) {
-			OptifabricError.setError("This version of OptiFine from %s is not compatible with the current minecraft version\n\nOptifine requires %s you are running %s",
-										file, minecraftVersion, currentMcVersion);
-			return JarType.INCOMPATIBLE;
+		// 强制绕过版本检查 - 允许任何1.16.x版本的OptiFine
+		if (!currentMcVersion.startsWith("1.16.") || !minecraftVersion.startsWith("1.16.")) {
+			// 如果不是1.16.x版本，仍然进行严格检查
+			if (!currentMcVersion.equals(minecraftVersion)) {
+				OptifabricError.setError("This version of OptiFine from %s is not compatible with the current minecraft version\n\nOptifine requires %s you are running %s",
+						file, minecraftVersion, currentMcVersion);
+				return JarType.INCOMPATIBLE;
+			}
 		}
+		// 如果是1.16.x版本，跳过版本检查，允许强制注入
 
 		MutableBoolean isInstaller = new MutableBoolean(false);
 		ZipUtils.iterateContents(file, (zip, zipEntry) -> {
