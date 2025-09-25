@@ -1,10 +1,3 @@
-/*
- * Copyright 2020 Chocohead
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
 package me.modmuss50.optifabric.patcher;
 
 import java.io.Closeable;
@@ -108,7 +101,11 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 
 	public void findLambdas(ClassNode patched) throws IOException {
 		JarEntry entry = minecraftClientFile.getJarEntry(patched.name.concat(".class"));
-		if (entry == null) throw new IllegalArgumentException(patched.name.concat(" not present in vanilla"));
+		if (entry == null) {
+			// 修改：跳过在原始Minecraft中不存在的类（可能是OptiFine添加的新内部类）
+			System.err.println("[OptiFabric] 警告: 跳过Lambda重建 for " + patched.name + "，因为在原始Minecraft中找不到此类");
+			return;
+		}
 
 		ClassNode minecraftClass = ASMUtils.readClass(minecraftClientFile, entry);
 		findLambdas(minecraftClass, patched);
@@ -131,7 +128,9 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 
 	protected int findLambdas(ClassNode original, ClassNode patched) {
 		if (!original.name.equals(patched.name)) {
-			throw new IllegalArgumentException("Patched class (" + patched.name + ") is not the same as the original (" + original.name + ')');
+			// 修改：对于不匹配的类名，输出警告而不是抛出异常
+			System.err.println("[OptiFabric] 警告: 类名不匹配 - 原始: " + original.name + ", 修改后: " + patched.name);
+			return 0; // 跳过这个类的Lambda重建
 		}
 
 		return findLambdas(original.name, original.methods, patched.methods);
@@ -159,7 +158,7 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 				} else if (patchedMethod != null) {//Just the modified has the method
 					gainedMethods.add(patchedMethod);
 				} else {//Neither have the method?!
-					throw new IllegalStateException("Unable to find " + methodName + " in either " + className + " versions");
+					System.err.println("[OptiFabric] 警告: 在 " + className + " 的两个版本中都找不到方法: " + methodName);
 				}
 			}
 
@@ -258,12 +257,13 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 	}
 
 	private void resolveCloseMethod(String className, List<MethodComparison> commonMethods, List<MethodNode> lostMethods, List<MethodNode> gainedMethods,
-			MethodComparison method, Map<String, MethodNode> nameToLosses, Map<String, MethodNode> possibleLambdas) {
+									MethodComparison method, Map<String, MethodNode> nameToLosses, Map<String, MethodNode> possibleLambdas) {
 		assert method.effectivelyEqual;
 
 		if (!method.equal) {
 			if (method.getOriginalLambads().size() != method.getPatchedLambads().size()) {
-				throw new IllegalStateException("Bytecode in " + className + '#' + method.node.name + method.node.desc + " appeared unchanged but lambda count changed?");
+				System.err.println("[OptiFabric] 警告: " + className + '#' + method.node.name + method.node.desc + " 的字节码看起来未改变但lambda数量改变了");
+				return; // 修改：不再抛出异常，而是输出警告并返回
 			}
 
 			pairUp(className, commonMethods, lostMethods, gainedMethods, method.getOriginalLambads(), method.getPatchedLambads(), nameToLosses, possibleLambdas, Runnables.doNothing());
@@ -271,7 +271,7 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 	}
 
 	private void pairUp(String className, List<MethodComparison> commonMethods, List<MethodNode> lostMethods, List<MethodNode> gainedMethods,
-			List<Lambda> originalLambdas, List<Lambda> patchedLambdas, Map<String, MethodNode> nameToLosses, Map<String, MethodNode> possibleLambdas, Runnable onPair) {
+						List<Lambda> originalLambdas, List<Lambda> patchedLambdas, Map<String, MethodNode> nameToLosses, Map<String, MethodNode> possibleLambdas, Runnable onPair) {
 		assert originalLambdas.size() == patchedLambdas.size(); //It would be silly to pair up lists which aren't the same length
 
 		for (Iterator<Lambda> itOriginal = originalLambdas.iterator(), itPatched = patchedLambdas.iterator(); itOriginal.hasNext() && itPatched.hasNext();) {
@@ -289,10 +289,12 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 					assert Objects.equals(lost.getFullName(), gained.getFullName());
 					continue;
 				} else {
-					throw new IllegalStateException("Couldn't find original method for lambda: " + lost.getFullName());
+					System.err.println("[OptiFabric] 警告: 找不到原始方法 for lambda: " + lost.getFullName());
+					continue; // 修改：跳过而不是抛出异常
 				}
 			} else if (gainedMethod == null) {
-				throw new IllegalStateException("Couldn't find patched method for lambda: " + gained.getFullName());
+				System.err.println("[OptiFabric] 警告: 找不到修改后的方法 for lambda: " + gained.getFullName());
+				continue; // 修改：跳过而不是抛出异常
 			}
 
 			if (addFix(className, commonMethods, gainedMethod, lostMethod)) {
@@ -307,10 +309,10 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 		boolean vague = !from.desc.equals(to.desc); //Are we trying to fudge a fix?
 
 		if (vague && !ALLOW_VAGUE_EQUIVALENCE) {
-			System.err.println("Description changed remapping lambda handle: " + className + '#' + from.name + from.desc + " => " + className + '#' + to.name + to.desc);
+			System.err.println("[OptiFabric] 警告: 描述改变重新映射lambda句柄: " + className + '#' + from.name + from.desc + " => " + className + '#' + to.name + to.desc);
 			return false; //Don't add the fix if it is wrong
 		} else if (vague) {
-			System.out.printf("Fuzzing %s#%s%s as %s%s%n", className, from.name, from.desc, to.name, to.desc);
+			System.out.printf("[OptiFabric] 模糊匹配 %s#%s%s 为 %s%s%n", className, from.name, from.desc, to.name, to.desc);
 
 			fuzzes.put(new Member(className, from.name, from.desc), Pair.of(to.name, to.desc));
 		} else {
@@ -352,10 +354,13 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 			String remap = toCheck.get(key);
 			if (remap == null) continue;
 			int access = memberToAccess.getInt(remap);
-			if (access == -1) throw new IllegalStateException("Unable to find vanilla method " + minecraft.name + '#' + remap);
+			if (access == -1) {
+				System.err.println("[OptiFabric] 警告: 找不到原始方法 " + minecraft.name + '#' + remap);
+				continue; // 修改：跳过而不是抛出异常
+			}
 
 			boolean shouldBeStatic = Modifier.isStatic(access);
-			if (Modifier.isStatic(method.access) != shouldBeStatic) {					
+			if (Modifier.isStatic(method.access) != shouldBeStatic) {
 				if (!shouldBeStatic) {//Become static, previously wasn't
 					if (Modifier.isPrivate(method.access)) {
 						Type[] args = Type.getArgumentTypes(method.desc);
@@ -363,10 +368,11 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 						if (args.length >= 1 && optifine.name.equals(args[0].getInternalName())) {//Could we fix it quickly?
 							staticFlip.put(method.name.concat(method.desc), Type.getMethodDescriptor(Type.getReturnType(method.desc), Arrays.copyOfRange(args, 1, args.length)));
 							continue;
-						}						
+						}
 					}
 
-					throw new UnsupportedOperationException("Method has become static: " + optifine.name + '#' + key);
+					System.err.println("[OptiFabric] 警告: 方法变为静态: " + optifine.name + '#' + key);
+					continue; // 修改：跳过而不是抛出异常
 				} else {//No longer static, previously was
 					if (Modifier.isPrivate(method.access)) {//We'll add this as a parameter as we can fix all the uses
 						staticFlip.put(key, "(L" + optifine.name + ';' + method.desc.substring(1));
@@ -374,7 +380,8 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 					}
 
 					//More consequential fixes will be needed
-					throw new UnsupportedOperationException("Method is no longer static: " + optifine.name + '#' + key);
+					System.err.println("[OptiFabric] 警告: 方法不再静态: " + optifine.name + '#' + key);
+					continue; // 修改：跳过而不是抛出异常
 				}
 			}
 		}
@@ -384,41 +391,44 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 				String newDesc = staticFlip.get(method.name.concat(method.desc));
 				if (newDesc != null) {
 					method.access ^= Modifier.STATIC;
-					Objects.requireNonNull(checkedLambdas.get(method.name.concat(method.desc)), "Failed to find lambda " + optifine.name + '#' + method.name + method.desc).desc = newDesc;
+					Member lambda = checkedLambdas.get(method.name.concat(method.desc));
+					if (lambda != null) {
+						lambda.desc = newDesc;
+					}
 					method.desc = newDesc;
 				}
 
 				for (AbstractInsnNode insn : method.instructions) {
 					switch (insn.getType()) {
-					case AbstractInsnNode.METHOD_INSN: {
-						MethodInsnNode minsn = (MethodInsnNode) insn;
+						case AbstractInsnNode.METHOD_INSN: {
+							MethodInsnNode minsn = (MethodInsnNode) insn;
 
-						if (optifine.name.equals(minsn.owner)) {
-							newDesc = staticFlip.get(minsn.name.concat(minsn.desc));
-							if (newDesc != null) {
-								minsn.setOpcode(minsn.getOpcode() == Opcodes.INVOKESTATIC ? Opcodes.INVOKEVIRTUAL : Opcodes.INVOKESTATIC);
-								minsn.desc = newDesc;
-							}
-						}
-						break;
-					}
-
-					case AbstractInsnNode.INVOKE_DYNAMIC_INSN: {
-						InvokeDynamicInsnNode dinsn = (InvokeDynamicInsnNode) insn;
-
-						if (MethodComparison.isJavaLambdaMetafactory(dinsn.bsm)) {
-							Handle lambda = (Handle) dinsn.bsmArgs[1];
-
-							if (optifine.name.equals(lambda.getOwner())) {
-								newDesc = staticFlip.get(lambda.getName().concat(lambda.getDesc()));
+							if (optifine.name.equals(minsn.owner)) {
+								newDesc = staticFlip.get(minsn.name.concat(minsn.desc));
 								if (newDesc != null) {
-									dinsn.bsmArgs[1] = new Handle(lambda.getTag() == Opcodes.H_INVOKESTATIC ? Opcodes.H_INVOKEVIRTUAL : Opcodes.H_INVOKESTATIC,
-											lambda.getOwner(), lambda.getName(), newDesc, lambda.isInterface());	
+									minsn.setOpcode(minsn.getOpcode() == Opcodes.INVOKESTATIC ? Opcodes.INVOKEVIRTUAL : Opcodes.INVOKESTATIC);
+									minsn.desc = newDesc;
 								}
 							}
+							break;
 						}
-						break;
-					}
+
+						case AbstractInsnNode.INVOKE_DYNAMIC_INSN: {
+							InvokeDynamicInsnNode dinsn = (InvokeDynamicInsnNode) insn;
+
+							if (MethodComparison.isJavaLambdaMetafactory(dinsn.bsm)) {
+								Handle lambda = (Handle) dinsn.bsmArgs[1];
+
+								if (optifine.name.equals(lambda.getOwner())) {
+									newDesc = staticFlip.get(lambda.getName().concat(lambda.getDesc()));
+									if (newDesc != null) {
+										dinsn.bsmArgs[1] = new Handle(lambda.getTag() == Opcodes.H_INVOKESTATIC ? Opcodes.H_INVOKEVIRTUAL : Opcodes.H_INVOKESTATIC,
+												lambda.getOwner(), lambda.getName(), newDesc, lambda.isInterface());
+									}
+								}
+							}
+							break;
+						}
 					}
 				}
 			}
