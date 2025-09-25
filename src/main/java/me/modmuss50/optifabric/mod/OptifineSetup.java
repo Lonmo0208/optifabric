@@ -188,7 +188,7 @@ public class OptifineSetup {
 
 		for (int attempt = 1; attempt <= 3; attempt++) {
 			try {
-				remapOptifine(jarOfTheFree, getLibs(minecraftJar), completeJar, createMappings("official", namespace, rebuilder));
+				remapOptifine(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar.toPath(), createMappings("official", namespace, rebuilder));
 				remapSuccess = true;
 				break;
 			} catch (Exception e) {
@@ -216,7 +216,7 @@ public class OptifineSetup {
 
 			// 尝试使用简化映射
 			try {
-				remapOptifineWithSimpleMapping(jarOfTheFree, getLibs(minecraftJar), completeJar);
+				remapOptifineWithSimpleMapping(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar.toPath());
 				remapSuccess = true;
 			} catch (Exception e) {
 				System.err.println("[OptiFabric] 简化映射也失败了: " + e.getMessage());
@@ -273,27 +273,27 @@ public class OptifineSetup {
 		}
 	}
 
-	private static void remapOptifine(File input, Path[] libraries, File output, IMappingProvider mappings) throws IOException {
-		remapOptifine(input.toPath(), libraries, output.toPath(), mappings);
-	}
-
 	private static void remapOptifine(Path input, Path[] libraries, Path output, IMappingProvider mappings) throws IOException {
 		Files.deleteIfExists(output);
 
-		// 修改：使用更宽松的配置来处理冲突
+		// 修改：修复TinyRemapper配置方法名
 		TinyRemapper remapper = TinyRemapper.newRemapper()
 				.withMappings(mappings)
 				.skipLocalVariableMapping(true)
 				.renameInvalidLocals(true) // 总是重命名无效的局部变量
 				.rebuildSourceFilenames(true)
-				.ignoreFieldDesc(true) // 忽略字段描述符冲突
-				.ignoreConflicts(true) // 忽略冲突，继续处理
 				.build();
 
 		try (OutputConsumerPath outputConsumer = new Builder(output).assumeArchive(true).build()) {
 			outputConsumer.addNonClassFiles(input);
 			remapper.readInputs(input);
-			remapper.readClassPath(libraries);
+
+			// 确保libraries数组不为null
+			if (libraries != null && libraries.length > 0) {
+				remapper.readClassPath(libraries);
+			} else {
+				System.err.println("[OptiFabric] 警告: 没有找到库文件，重新映射可能会失败");
+			}
 
 			remapper.apply(outputConsumer);
 		} catch (Exception e) {
@@ -303,7 +303,7 @@ public class OptifineSetup {
 				// 即使有冲突，也尝试继续
 				throw new RuntimeException("无法解决的映射冲突", e);
 			} else {
-				throw new RuntimeException("重新映射失败", e);
+				throw new RuntimeException("重新映射失败: " + e.getMessage(), e);
 			}
 		} finally {
 			remapper.finish();
@@ -311,8 +311,8 @@ public class OptifineSetup {
 	}
 
 	// 新增：简化映射方法
-	private static void remapOptifineWithSimpleMapping(File input, Path[] libraries, File output) throws IOException {
-		Files.deleteIfExists(output.toPath());
+	private static void remapOptifineWithSimpleMapping(Path input, Path[] libraries, Path output) throws IOException {
+		Files.deleteIfExists(output);
 
 		// 使用极简映射，只处理类名
 		IMappingProvider simpleMappings = out -> {
@@ -325,14 +325,15 @@ public class OptifineSetup {
 				.skipLocalVariableMapping(true)
 				.renameInvalidLocals(true)
 				.rebuildSourceFilenames(true)
-				.ignoreFieldDesc(true)
-				.ignoreConflicts(true)
 				.build();
 
-		try (OutputConsumerPath outputConsumer = new Builder(output.toPath()).assumeArchive(true).build()) {
-			outputConsumer.addNonClassFiles(input.toPath());
-			remapper.readInputs(input.toPath());
-			remapper.readClassPath(libraries);
+		try (OutputConsumerPath outputConsumer = new Builder(output).assumeArchive(true).build()) {
+			outputConsumer.addNonClassFiles(input);
+			remapper.readInputs(input);
+
+			if (libraries != null && libraries.length > 0) {
+				remapper.readClassPath(libraries);
+			}
 
 			remapper.apply(outputConsumer);
 		} catch (Exception e) {
