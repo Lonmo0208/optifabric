@@ -312,7 +312,7 @@ public class OptifineSetup {
 
 	// 新增：简化映射方法
 	private static void remapOptifineWithSimpleMapping(File input, Path[] libraries, File output) throws IOException {
-		Files.deleteIfExists(output);
+		Files.deleteIfExists(output.toPath());
 
 		// 使用极简映射，只处理类名
 		IMappingProvider simpleMappings = out -> {
@@ -329,9 +329,9 @@ public class OptifineSetup {
 				.ignoreConflicts(true)
 				.build();
 
-		try (OutputConsumerPath outputConsumer = new Builder(output).assumeArchive(true).build()) {
-			outputConsumer.addNonClassFiles(input);
-			remapper.readInputs(input);
+		try (OutputConsumerPath outputConsumer = new Builder(output.toPath()).assumeArchive(true).build()) {
+			outputConsumer.addNonClassFiles(input.toPath());
+			remapper.readInputs(input.toPath());
 			remapper.readClassPath(libraries);
 
 			remapper.apply(outputConsumer);
