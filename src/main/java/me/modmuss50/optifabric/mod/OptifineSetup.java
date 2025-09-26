@@ -150,9 +150,9 @@ public class OptifineSetup {
 
 							rebuilder.findLambdas(node);
 
-							ClassWriter writer = new ClassWriter(0);
-							node.accept(writer);
-							return new ByteArrayInputStream(writer.toByteArray());
+							// 修改：使用ASMUtils.writeClass自动计算栈映射帧
+							byte[] classBytes = ASMUtils.writeClass(node);
+							return new ByteArrayInputStream(classBytes);
 						} catch (IllegalArgumentException e) {
 							// 捕获并处理"not present in vanilla"错误
 							if (e.getMessage() != null && e.getMessage().contains("not present in vanilla")) {

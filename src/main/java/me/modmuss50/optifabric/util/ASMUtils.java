@@ -9,6 +9,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
 public class ASMUtils {
@@ -30,7 +31,20 @@ public class ASMUtils {
 
 	private static ClassNode readClass(ClassReader reader) {
 		ClassNode node = new ClassNode();
-		reader.accept(node, ClassReader.SKIP_FRAMES);
+		// 修改：使用EXPAND_FRAMES而不是SKIP_FRAMES，确保正确处理栈映射帧
+		reader.accept(node, ClassReader.EXPAND_FRAMES);
 		return node;
+	}
+
+	// 新增方法：将ClassNode转换为字节数组，并自动计算栈映射帧
+	public static byte[] writeClass(ClassNode classNode, boolean computeFrames) {
+		ClassWriter writer = new ClassWriter(computeFrames ? ClassWriter.COMPUTE_FRAMES : ClassWriter.COMPUTE_MAXS);
+		classNode.accept(writer);
+		return writer.toByteArray();
+	}
+
+	// 新增方法：快速写入类（默认计算栈映射帧）
+	public static byte[] writeClass(ClassNode classNode) {
+		return writeClass(classNode, true);
 	}
 }

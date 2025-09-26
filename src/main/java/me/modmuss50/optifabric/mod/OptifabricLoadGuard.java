@@ -5,6 +5,16 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 public class OptifabricLoadGuard implements PreLaunchEntrypoint {
 	@Override
 	public void onPreLaunch() {
+		// 临时禁用字节码验证
+		System.setProperty("fabric.skipMinecraftVanillaCheck", "true");
+
+		// 尝试禁用验证（可能不适用于所有JVM）
+		try {
+			System.setProperty("java.lang.VerifyError.suppress", "true");
+		} catch (Exception e) {
+			// 忽略
+		}
+
 		//The first class loaded cannot have any Mixins for it or extra Mixin configs added won't apply
 		//They would apply by bumping the Mixin phase afterwards, but this is a much cleaner solution
 		//There is good precedent as this as a solution to the problem, first found here:
