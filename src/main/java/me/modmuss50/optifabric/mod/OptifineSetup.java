@@ -54,7 +54,6 @@ import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.IMappingProvider.Member;
 import net.fabricmc.tinyremapper.OutputConsumerPath.Builder;
 
-import me.modmuss50.optifabric.mod.OptifineVersion.JarType;
 import me.modmuss50.optifabric.patcher.ClassCache;
 import me.modmuss50.optifabric.patcher.LambdaRebuilder;
 import me.modmuss50.optifabric.util.ASMUtils;
