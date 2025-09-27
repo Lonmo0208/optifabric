@@ -1,193 +1,134 @@
 package me.modmuss50.optifabric.mod;
 
-import java.io.File;
+import java.lang.reflect.Modifier;
+import java.util.HashSet;
 import java.util.Optional;
-import java.util.function.BooleanSupplier;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
+import java.util.Set;
+import java.util.function.Consumer;
 
-import com.google.common.base.MoreObjects;
-
-import org.apache.commons.lang3.tuple.Pair;
-
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.MethodNode;
 
-import org.spongepowered.asm.mixin.FabricUtil;
-import org.spongepowered.asm.mixin.Mixins;
-import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
-import org.spongepowered.asm.mixin.transformer.Config;
+import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
-import net.fabricmc.loader.api.metadata.ModMetadata;
-import net.fabricmc.loader.util.version.SemanticVersionImpl;
-import net.fabricmc.loader.util.version.SemanticVersionPredicateParser;
-
-import me.modmuss50.optifabric.mod.OptifineVersion.JarType;
-import me.modmuss50.optifabric.patcher.ClassCache;
-import me.modmuss50.optifabric.util.RemappingUtils;
 
 import com.chocohead.mm.api.ClassTinkerers;
 
-public class OptifabricSetup implements Runnable {
-	public static File optifineRuntimeJar = null;
-	public static boolean usingScreenAPI;
+import me.modmuss50.optifabric.patcher.ClassCache;
+import me.modmuss50.optifabric.patcher.fixes.OptifineFixer;
+import me.modmuss50.optifabric.util.ASMUtils;
 
-	@Override
-	public void run() {
-		OptifineInjector injector;
-		try {
-			Pair<File, ClassCache> runtime = OptifineSetup.getRuntime();
-			optifineRuntimeJar = runtime.getLeft();
+public class OptifineInjector {
+	private static Set<String> patched = new HashSet<>();
+	private final ClassCache classCache;
 
-			ClassTinkerers.addURL(runtime.getLeft().toURI().toURL());
+	public OptifineInjector(ClassCache classCache) {
+		this.classCache = classCache;
+	}
 
-			injector = new OptifineInjector(runtime.getRight());
-			injector.setup();
-		} catch (Throwable e) {
-			if (!OptifabricError.hasError()) {
-				OptifineVersion.jarType = JarType.INTERNAL_ERROR;
-				OptifabricError.setError(e, "Failed to load OptiFine, please report this!\n\n" + e.getMessage());
+	public Optional<ClassNode> predictFuture(String className) {
+		byte[] bytes = classCache.getClass(className);
+		return bytes != null ? Optional.of(ASMUtils.readClass(bytes)) : Optional.empty();
+	}
+
+	public void setup() {
+		Consumer<ClassNode> transformer = target -> {
+			//Avoid double patching things, not that this should happen
+			if (!patched.add(target.name)) {
+				System.err.println("Already patched " + target.name);
+				return;
 			}
-			System.err.println("Failed to setup optifine:");
-			e.printStackTrace();
-			return;
-		}
 
-		BooleanSupplier particlesPresent = new FeatureFinder() {
-			@Override
-			protected boolean isPresent() {
-				return injector.predictFuture(RemappingUtils.getClassName("class_702")).filter(node -> {
-					String desc = RemappingUtils.mapMethodDescriptor("(Lnet/minecraft/class_4587;Lnet/minecraft/class_4597$class_4598;"
-							+ "Lnet/minecraft/class_765;Lnet/minecraft/class_4184;FLnet/minecraft/class_4604;)V");
+			// 强制关闭类修补拦截（移除版本检查逻辑）
+			// if (OptifineFixer.INSTANCE.shouldSkip(target.name)) {
+			// 	return;
+			// }
 
-					for (MethodNode method : node.methods) {
-						if (("renderParticles".equals(method.name) || "render".equals(method.name)) && desc.equals(method.desc)) {
-							return true;
-						}
-					}
-					return false;
-				}).isPresent();
+			//Remember the access we started with
+			Object2IntMap<String> memberToAccess = new Object2IntArrayMap<>(target.methods.size());
+			memberToAccess.defaultReturnValue(-1);
+			for (MethodNode method : target.methods) {
+				memberToAccess.put(method.name + method.desc, method.access);
 			}
-		};
-		BooleanSupplier farPlanePresent = new FeatureFinder() {
-			@Override
-			protected boolean isPresent() {
-				return injector.predictFuture(RemappingUtils.getClassName("class_757")).filter(node -> {
-					String render = RemappingUtils.getMethodName("class_757", "method_3192", "(FJZ)V");
-
-					for (MethodNode method : node.methods) {
-						if (render.equals(method.name) && "(FJZ)V".equals(method.desc)) {
-							for (AbstractInsnNode insn : method.instructions) {
-								if (insn.getType() == AbstractInsnNode.FIELD_INSN && "ForgeHooksClient_getGuiFarPlane".equals(((FieldInsnNode) insn).name)) {
-									return true;
-								}
-							}
-							break;
-						}
-					}
-					return false;
-				}).isPresent();
+			for (FieldNode field : target.fields) {
+				memberToAccess.put(field.name + ' ' + field.desc, field.access);
 			}
-		};
-		BooleanSupplier setupFogPresent = new FeatureFinder() {
-			@Override
-			protected boolean isPresent() {
-				return injector.predictFuture(RemappingUtils.getClassName("class_758")).filter(node -> {
-					String desc = RemappingUtils.mapMethodDescriptor("(Lnet/minecraft/class_4184;Lnet/minecraft/class_758$class_4596;FZF)V");
 
-					for (MethodNode method : node.methods) {
-						if ("setupFog".equals(method.name) && desc.equals(method.desc)) {
-							return true;
+			//I cannot imagine this being very good at all
+			ClassNode source = getSourceClassNode(target);
+
+			//Patch the class if required
+			OptifineFixer.INSTANCE.getFixers(target.name).forEach(classFixer -> classFixer.fix(source, target));
+
+			target.methods = source.methods;
+			target.fields = source.fields;
+			target.interfaces = source.interfaces;
+			target.superName = source.superName;
+
+			//Classes should be read with frames expanded (as Mixin itself does it), in which case this should all be fine
+			for (MethodNode methodNode : target.methods) {
+				for (AbstractInsnNode insnNode : methodNode.instructions.toArray()) {
+					if (insnNode instanceof FrameNode) {
+						FrameNode frameNode = (FrameNode) insnNode;
+						if (frameNode.local == null) {
+							throw new IllegalStateException("Null locals in " + frameNode.type + " frame @ " + source.name + "#" + methodNode.name + methodNode.desc);
 						}
-					}
-					return false;
-				}).isPresent();
-			}
-		};
-
-		// 移除所有版本检查，强制加载所有兼容配置
-		if (isPresent("fabric-renderer-api-v1")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-renderer-api.new-mixins.json");
-		}
-
-		if (isPresent("fabric-rendering-v1", ">=1.5.0") && particlesPresent.getAsBoolean()) {
-			Mixins.addConfiguration("optifabric.compat.fabric-rendering.new-mixins.json");
-		}
-		if (isPresent("fabric-rendering-v1", ">=1.13.0 <2.0") || isPresent("fabric-rendering-v1", ">=2.1.0")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-rendering.extra-mixins.json");
-		}
-
-		if (isPresent("fabric-rendering-data-attachment-v1")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-rendering-data.mixins.json");
-
-			if (true) { // 强制启用
-				injector.predictFuture(RemappingUtils.getClassName("class_6850")).ifPresent(node -> {
-					String desc = RemappingUtils.mapMethodDescriptor("(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Lnet/minecraft/class_2338;IZ)Lnet/minecraft/class_853;");
-
-					for (MethodNode method : node.methods) {
-						if ("createRegion".equals(method.name) && desc.equals(method.desc)) {
-							Mixins.addConfiguration("optifabric.compat.fabric-rendering-data.bonus-mixins.json");
-							break;
-						}
-					}
-				});
-			} else if (true) { // 强制启用
-				injector.predictFuture(RemappingUtils.getClassName("class_853")).ifPresent(node -> {
-					String desc = RemappingUtils.mapMethodDescriptor("(Lnet/minecraft/class_1937;Lnet/minecraft/class_2338;Lnet/minecraft/class_2338;IZ)Lnet/minecraft/class_853;");
-
-					for (MethodNode method : node.methods) {
-						if ("generateCache".equals(method.name) && desc.equals(method.desc)) {
-							Mixins.addConfiguration("optifabric.compat.fabric-rendering-data.extra-mixins.json");
-							break;
-						}
-					}
-				});
-			}
-		}
-
-		if (isPresent("fabric-renderer-indigo")) {
-			injector.predictFuture(RemappingUtils.getClassName("class_776")).ifPresent(node -> {
-				String desc = RemappingUtils.getClassName("class_1921").concat(";)V");
-
-				for (MethodNode method : node.methods) {
-					if ("renderBatched".equals(method.name) && method.desc.endsWith(desc)) {
-						Mixins.addConfiguration("optifabric.compat.indigo.newer-mixins.json");
-						return;
 					}
 				}
-				Mixins.addConfiguration("optifabric.compat.indigo.new-mixins.json");
-			});
-		}
+			}
 
-		if (isPresent("fabric-item-api-v1", ">=1.1.0")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-item-api.mixins.json");
-		}
+			// Lets make every class we touch match the access it used to have
+			target.access = widerAccess(target.access, source.access);
+			for (MethodNode method : target.methods) {
+				int access = memberToAccess.getInt(method.name + method.desc);
+				if (access != -1) method.access = widerAccess(access, method.access);
+			}
+			for (FieldNode field : target.fields) {
+				int access = memberToAccess.getInt(field.name + ' ' + field.desc);
+				if (access != -1) field.access = widerAccess(access, field.access);
+			}
+		};
 
-		if (isPresent("fabric-screen-api-v1")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-screen-api.new4er-mixins.json");
-			usingScreenAPI = true;
+		for (String name : classCache.getClasses()) {
+			ClassTinkerers.addReplacement(name, transformer);
 		}
-
-		if (isPresent("fabric-lifecycle-events-v1")) {
-			Mixins.addConfiguration("optifabric.compat.fabric-lifecycle-events.new-mixins.json");
-		}
-
-		Mixins.addConfiguration("optifabric.optifine.mixins.json");
-		Mixins.addConfiguration("optifabric.optifine.old-mixins.json");
 	}
 
-	// 保留原有isPresent方法但忽略版本检查
-	public static boolean isPresent(String modId) {
-		return FabricLoader.getInstance().isModLoaded(modId);
+	private static int widerAccess(int origin, int target) {
+		if (!Modifier.isFinal(origin)) target &= ~Modifier.FINAL;
+
+		switch (target & 0x7) {
+			case Modifier.PUBLIC:
+				return target;
+
+			case Modifier.PROTECTED:
+				return Modifier.isPublic(origin) ? (target & (~0x7)) | Modifier.PUBLIC : target;
+
+			case 0:
+				return Modifier.isPrivate(origin) ? target : (target & (~0x7)) | (origin & 0x7);
+
+			case Modifier.PRIVATE:
+				return (target & (~0x7)) | (origin & 0x7);
+
+			default:
+				if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+					throw new AssertionError("Unexpected access: " + target + " (transformed from " + origin + ')');
+				}
+
+				return target;
+		}
 	}
 
-	public static boolean isPresent(String modId, String versionRange) {
-		return FabricLoader.getInstance().isModLoaded(modId);
+	private ClassNode getSourceClassNode(ClassNode classNode) {
+		byte[] bytes = classCache.popClass(classNode.name);
+		if(bytes == null) {
+			throw new RuntimeException("Failed to find patched class for: " + classNode.name);
+		}
+		return ASMUtils.readClass(bytes);
 	}
 }
