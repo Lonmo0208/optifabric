@@ -7,26 +7,25 @@ public class OptifabricLoadGuard implements PreLaunchEntrypoint {
 	public void onPreLaunch() {
 		System.out.println("[OptiFabric] 加载保护启动");
 
-		// 临时禁用字节码验证
+		// 强制设置系统属性
 		System.setProperty("fabric.skipMinecraftVanillaCheck", "true");
 		System.setProperty("fabric.skipMcProvider", "true");
+		System.setProperty("fabric.loader.development", "false");
 
-		// 尝试禁用验证（可能不适用于所有JVM）
+		// 禁用所有可能的验证
+		System.setProperty("java.system.class.loader", "net.fabricmc.loader.impl.launch.knot.KnotClassLoader");
+		System.setProperty("fabric.skipMixinRefMap", "true");
+
+		// 尝试设置安全管理器以绕过验证
 		try {
-			System.setProperty("java.lang.VerifyError.suppress", "true");
+			System.setSecurityManager(null);
 		} catch (Exception e) {
 			// 忽略
 		}
 
-		// 添加额外的系统属性以改善兼容性
-		System.setProperty("optifabric.forceCompatibility", "true");
-		System.setProperty("optifabric.skipVersionCheck", "true");
+		// 设置类加载器属性
+		System.setProperty("org.lwjgl.librarypath", System.getProperty("java.io.tmpdir"));
 
 		System.out.println("[OptiFabric] 加载保护完成");
-
-		//The first class loaded cannot have any Mixins for it or extra Mixin configs added won't apply
-		//They would apply by bumping the Mixin phase afterwards, but this is a much cleaner solution
-		//There is good precedent as this as a solution to the problem, first found here:
-		//https://github.com/ReplayMod/ReplayMod/commit/27edfcb4f3cd0eac0c7fb24e87ee3fa67324ab0a
 	}
 }

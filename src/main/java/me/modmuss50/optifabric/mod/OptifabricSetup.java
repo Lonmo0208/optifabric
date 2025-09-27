@@ -41,25 +41,34 @@ public class OptifabricSetup implements Runnable {
 	//This is called early on to allow us to get the transformers in beofore minecraft starts
 	@Override
 	public void run() {
+		System.out.println("[OptiFabric] 开始设置");
+
+		// 首先尝试应急加载关键类
+		EmergencyLoader.loadCriticalClasses();
+
 		OptifineInjector injector;
 		try {
 			Pair<File, ClassCache> runtime = OptifineSetup.getRuntime();
 			optifineRuntimeJar = runtime.getLeft();
 
-			//Add the optifine jar to the classpath, as
+			// 提前添加optifine jar到类路径
 			ClassTinkerers.addURL(runtime.getLeft().toURI().toURL());
+			System.out.println("[OptiFabric] 已添加OptiFine jar到类路径");
 
 			injector = new OptifineInjector(runtime.getRight());
 			injector.setup();
+			System.out.println("[OptiFabric] 注入器设置完成");
 		} catch (Throwable e) {
 			if (!OptifabricError.hasError()) {
 				OptifineVersion.jarType = JarType.INTERNAL_ERROR;
 				OptifabricError.setError(e, "Failed to load OptiFine, please report this!\n\n" + e.getMessage());
 			}
-			System.err.println("Failed to setup optifine:");
+			System.err.println("[OptiFabric] 设置OptiFine失败:");
 			e.printStackTrace();
-			return; //Avoid crashing out any other Fabric ASM users
+			return;
 		}
+
+		System.out.println("[OptiFabric] 设置完成");
 
 		BooleanSupplier particlesPresent = new FeatureFinder() {
 			@Override

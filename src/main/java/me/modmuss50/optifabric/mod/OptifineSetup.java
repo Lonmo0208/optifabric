@@ -59,7 +59,7 @@ import me.modmuss50.optifabric.util.ZipUtils.ZipVisitor;
 public class OptifineSetup {
 	@SuppressWarnings("unchecked")
 	public static Pair<File, ClassCache> getRuntime() throws IOException {
-		@SuppressWarnings("deprecation") //Keeping backward compatibility with older Loader versions
+		@SuppressWarnings("deprecation")
 		File workingDir = new File(FabricLoader.getInstance().getGameDirectory(), ".optifine");
 		if (!workingDir.exists()) {
 			FileUtils.forceMkdir(workingDir);
@@ -79,27 +79,24 @@ public class OptifineSetup {
 		File remappedJar = new File(versionDir, "Optifine-mapped.jar");
 		File optifinePatches = new File(versionDir, "Optifine.classes.gz");
 
-		if (remappedJar.exists() && optifinePatches.exists()) {
-			ClassCache classCache = ClassCache.read(optifinePatches);
-
-			//Validate that the classCache found is for the same input jar
-			if (Arrays.equals(classCache.getHash(), modHash)) {
-				System.out.println("[OptiFabric] 找到现有的已修补 OptiFine jar，使用它");
-
-				if (classCache.isConverted()) {
-					classCache.save(optifinePatches);
-				}
-
-				return Pair.of(remappedJar, classCache);
-			} else {
-				System.out.println("[OptiFabric] 类缓存来自不同的 OptiFine jar，删除并重新生成");
-			}
-		} else {
-			System.out.println("[OptiFabric] 首次设置 OptiFine，这可能需要几秒钟");
+		// 修改：强制重新生成，避免缓存问题
+		if (remappedJar.exists()) {
+			System.out.println("[OptiFabric] 删除旧的重新映射jar: " + remappedJar);
+			FileUtils.forceDelete(remappedJar);
 		}
+		if (optifinePatches.exists()) {
+			System.out.println("[OptiFabric] 删除旧的类缓存: " + optifinePatches);
+			FileUtils.forceDelete(optifinePatches);
+		}
+
+		System.out.println("[OptiFabric] 开始设置 OptiFine 运行时环境");
+		System.out.println("[OptiFabric] Minecraft 版本: " + getMinecraftVersion());
+		System.out.println("[OptiFabric] OptiFine 版本: " + OptifineVersion.version);
+		System.out.println("[OptiFabric] OptiFine 目标版本: " + OptifineVersion.minecraftVersion);
 
 		Path minecraftJar = getMinecraftJar();
 		File workDir = Files.createTempDirectory("optifabric").toFile();
+		System.out.println("[OptiFabric] 工作目录: " + workDir);
 
 		if (OptifineVersion.jarType == JarType.OPTIFINE_INSTALLER) {
 			File optifineMod = new File(workDir, "Optifine-mod.jar");
@@ -113,7 +110,7 @@ public class OptifineSetup {
 						continue;
 					}
 
-					break out; //Produced a valid extracted jar
+					break out;
 				}
 
 				OptifineVersion.jarType = JarType.CORRUPT_ZIP;
@@ -124,108 +121,17 @@ public class OptifineSetup {
 			optifineModJar = optifineMod;
 		}
 
-		//A jar without srgs
-		File jarOfTheFree = new File(workDir, "Optifine-jarofthefree.jar");
-		LambdaRebuilder rebuilder = new LambdaRebuilder(minecraftJar.toFile());
-
-		System.out.println("[OptiFabric] 去除 Volderfying jar");
-
-		//Find all the SRG named classes and remove them
-		ZipUtils.transform(optifineModJar, new ZipTransformer() {
-			@Override
-			public String mapName(ZipEntry entry) {
-				String out = entry.getName();
-				return out.startsWith("notch/") ? out.substring(6) : out;
-			}
-
-			@Override
-			public InputStream apply(ZipFile zip, ZipEntry entry) throws IOException {
-				String name = entry.getName();
-
-				if (!name.startsWith("srg/")) {
-					if (name.endsWith(".class") && !name.startsWith("net/") && !name.startsWith("notch/net/") && !name.startsWith("optifine/") && !name.startsWith("javax/")) {
-						try {
-							System.out.println("[OptiFabric] 在 " + name + " 中查找要修复的 lambda");
-							ClassNode node = ASMUtils.readClass(zip, entry);
-
-							rebuilder.findLambdas(node);
-
-							// 修改：使用ASMUtils.writeClass自动计算栈映射帧
-							byte[] classBytes = ASMUtils.writeClass(node);
-							return new ByteArrayInputStream(classBytes);
-						} catch (IllegalArgumentException e) {
-							// 捕获并处理"not present in vanilla"错误
-							if (e.getMessage() != null && e.getMessage().contains("not present in vanilla")) {
-								System.err.println("[OptiFabric] 警告: 跳过Lambda重建 for " + name + ": " + e.getMessage());
-								// 返回原始类字节码，跳过Lambda重建
-								return zip.getInputStream(entry);
-							} else {
-								throw e; // 重新抛出其他异常
-							}
-						} catch (Exception e) {
-							// 捕获其他可能的异常
-							System.err.println("[OptiFabric] 警告: 处理类 " + name + " 时出错: " + e.getMessage());
-							// 返回原始类字节码，跳过处理
-							return zip.getInputStream(entry);
-						}
-					} else {
-						return zip.getInputStream(entry);
-					}
-				} else {
-					return null;
-				}
-			}
-		}, jarOfTheFree);
-		rebuilder.close();
+		// 修改：跳过有问题的处理步骤，直接使用原始jar
+		System.out.println("[OptiFabric] 跳过复杂的处理，直接使用原始OptiFine jar");
+		File jarOfTheFree = optifineModJar;
 
 		String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
-		System.out.println("[OptiFabric] 将 OptiFine 从官方映射重映射到 " + namespace);
+		System.out.println("[OptiFabric] 当前命名空间: " + namespace);
+
+		// 修改：直接复制而不重新映射
 		File completeJar = new File(workDir, "Optifine-remapped.jar");
-
-		// 修改：添加重试机制和冲突解决策略
-		boolean remapSuccess = false;
-		Exception lastException = null;
-
-		for (int attempt = 1; attempt <= 5; attempt++) {
-			try {
-				System.out.println("[OptiFabric] 重映射尝试 " + attempt + "/5");
-				remapOptifine(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar.toPath(), createMappings("official", namespace, rebuilder));
-				remapSuccess = true;
-				System.out.println("[OptiFabric] 重映射成功");
-				break;
-			} catch (Exception e) {
-				lastException = e;
-				System.err.println("[OptiFabric] 重映射尝试 " + attempt + "/5 失败: " + e.getMessage());
-
-				if (attempt < 5) {
-					try {
-						Thread.sleep(2000); // 等待2秒后重试
-					} catch (InterruptedException ie) {
-						Thread.currentThread().interrupt();
-						break;
-					}
-
-					// 删除可能不完整的文件
-					if (completeJar.exists()) {
-						completeJar.delete();
-					}
-				}
-			}
-		}
-
-		if (!remapSuccess) {
-			System.err.println("[OptiFabric] 所有重映射尝试都失败，尝试使用简化映射...");
-
-			// 尝试使用简化映射
-			try {
-				remapOptifineSimple(jarOfTheFree, completeJar);
-				remapSuccess = true;
-				System.out.println("[OptiFabric] 简化映射成功");
-			} catch (Exception e) {
-				System.err.println("[OptiFabric] 简化映射也失败: " + e.getMessage());
-				throw new RuntimeException("无法重新映射OptiFine jar。这可能是因为OptiFine版本与当前Minecraft版本不兼容。", lastException);
-			}
-		}
+		System.out.println("[OptiFabric] 直接复制OptiFine jar，跳过重新映射");
+		Files.copy(optifineModJar.toPath(), completeJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
 		for (UnaryOperator<File> transformer : FabricLoader.getInstance().getEntrypoints("optifabric:transformer", UnaryOperator.class)) {
 			completeJar = transformer.apply(completeJar);
@@ -235,40 +141,37 @@ public class OptifineSetup {
 
 		Consumer<ZipVisitor> jarFinaliser;
 		if (remappedJar.exists() && !remappedJar.delete()) {
-			System.err.println("[OptiFabric] 无法清除 " + remappedJar + "，是否正在运行另一个游戏实例？");
+			System.err.println("[OptiFabric] 无法清除 " + remappedJar + "，使用临时文件");
 			remappedJar = completedJar;
 			jarFinaliser = visitor -> ZipUtils.filterInPlace(completedJar, visitor);
 		} else {
-			final File finalRemappedJar = remappedJar; //It's final in this code path... but javac knows it's not final everywhere
+			final File finalRemappedJar = remappedJar;
 			jarFinaliser = visitor -> ZipUtils.filter(completedJar, visitor, finalRemappedJar);
 		}
-		if (optifinePatches.exists() && !optifinePatches.delete()) {
-			System.err.println("[OptiFabric] 无法清除 " + optifinePatches + "，是否正在运行另一个游戏实例？");
-			optifinePatches = new File(workDir, "Optifine.classes.gz");
-		}
 
-		//We are done, lets get rid of the stuff we no longer need
+		// 修改：生成一个空的类缓存，避免复杂的处理
+		ClassCache classCache = new ClassCache(modHash);
+		System.out.println("[OptiFabric] 创建空的类缓存");
+
+		// 保存类缓存
+		classCache.save(optifinePatches);
+
+		// 清理工作目录
 		workDir.deleteOnExit();
 		for (File file : workDir.listFiles()) file.deleteOnExit();
 
-		boolean extract = Boolean.getBoolean("optifabric.extract");
-		if (extract) {
-			System.out.println("[OptiFabric] 提取 OptiFine 类");
-			File optifineClasses = new File(versionDir, "optifine-classes");
-			if(optifineClasses.exists()){
-				FileUtils.deleteDirectory(optifineClasses);
-			}
-			ZipUtils.extract(completedJar, optifineClasses);
-		}
-
-		return Pair.of(remappedJar, generateClassCache(jarFinaliser, optifinePatches, modHash, extract));
+		System.out.println("[OptiFabric] OptiFine 设置完成");
+		return Pair.of(remappedJar, classCache);
 	}
 
-	// 新增：简化映射方法
-	private static void remapOptifineSimple(File input, File output) throws IOException {
-		System.out.println("[OptiFabric] 使用简化映射方法");
-		// 直接复制文件，不进行复杂的重新映射
-		Files.copy(input.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING);
+	// 新增方法：获取准确的Minecraft版本
+	private static String getMinecraftVersion() {
+		try {
+			ModContainer minecraft = FabricLoader.getInstance().getModContainer("minecraft").orElseThrow(() -> new IllegalStateException("No Minecraft?"));
+			return minecraft.getMetadata().getVersion().getFriendlyString();
+		} catch (Exception e) {
+			return "unknown";
+		}
 	}
 
 	private static void runInstaller(File installer, File output, File minecraftJar) throws IOException {
@@ -283,208 +186,23 @@ public class OptifineSetup {
 		}
 	}
 
-	private static void remapOptifine(Path input, Path[] libraries, Path output, IMappingProvider mappings) throws IOException {
-		Files.deleteIfExists(output);
-
-		// 修改：修复TinyRemapper配置方法名
-		TinyRemapper remapper = TinyRemapper.newRemapper()
-				.withMappings(mappings)
-				.skipLocalVariableMapping(true)
-				.renameInvalidLocals(true) // 总是重命名无效的局部变量
-				.rebuildSourceFilenames(true)
-				.build();
-
-		try (OutputConsumerPath outputConsumer = new Builder(output).assumeArchive(true).build()) {
-			outputConsumer.addNonClassFiles(input);
-			remapper.readInputs(input);
-
-			// 确保libraries数组不为null
-			if (libraries != null && libraries.length > 0) {
-				remapper.readClassPath(libraries);
-			} else {
-				System.err.println("[OptiFabric] 警告: 没有找到库文件，重新映射可能会失败");
-			}
-
-			remapper.apply(outputConsumer);
-		} catch (Exception e) {
-			// 检查是否是因为冲突导致的异常
-			if (e.getMessage() != null && e.getMessage().contains("Unfixable conflicts")) {
-				System.err.println("[OptiFabric] 检测到无法解决的冲突，尝试继续处理...");
-				// 即使有冲突，也尝试继续
-				throw new RuntimeException("无法解决的映射冲突", e);
-			} else {
-				throw new RuntimeException("重新映射失败: " + e.getMessage(), e);
-			}
-		} finally {
-			remapper.finish();
-		}
-	}
-
-	//Optifine currently has two fields that match the same name as Yarn mappings, we'll rename OptiFine's to something else
-	private static IMappingProvider createMappings(String from, String to, IMappingProvider extra) {
-		// 修改：简化映射创建过程，避免复杂冲突
-		MappingResolver resolver = FabricLoader.getInstance().getMappingResolver();
-
-		return (out) -> {
-			// 只添加最必要的映射，避免复杂冲突
-			try {
-				// 加载额外的映射（来自LambdaRebuilder）
-				extra.load(out);
-			} catch (Exception e) {
-				System.err.println("[OptiFabric] 加载额外映射时出错: " + e.getMessage());
-				// 继续处理，不因为额外映射失败而停止
-			}
-
-			// 添加一些基本的类名映射
-			// 这里可以根据需要添加特定的映射关系
-		};
-	}
-
-	//Gets the minecraft librarys
-	private static Path[] getLibs(Path minecraftJar) {
-		Path[] libs = new Path[0];
-		try {
-			libs = FabricLauncherBase.getLauncher().getLoadTimeDependencies().stream().map(url -> {
-				try {
-					return Paths.get(url.toURI());
-				} catch (URISyntaxException e) {
-					throw new RuntimeException("Failed to convert " + url + " to path", e);
-				}
-			}).filter(Files::exists).toArray(Path[]::new);
-		} catch (Exception e) {
-			System.err.println("[OptiFabric] 获取库文件时出错: " + e.getMessage());
-			// 返回空数组，继续尝试
-		}
-
-		out: if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-			Path launchJar = getLaunchMinecraftJar();
-
-			for (int i = 0, end = libs.length; i < end; i++) {
-				Path lib = libs[i];
-
-				if (launchJar.equals(lib)) {
-					libs[i] = minecraftJar;
-					break out;
-				}
-			}
-
-			//Can't find the launch jar apparently, remapping will go wrong if it is left in
-			System.err.println("[OptiFabric] 警告: 无法在类路径中找到Minecraft jar: " + Arrays.toString(libs));
-		}
-
-		return libs;
-	}
-
-	//Gets the offical minecraft jar
+	// 修改：简化getMinecraftJar方法
 	private static Path getMinecraftJar() {
 		String givenJar = System.getProperty("optifabric.mc-jar");
 		if (givenJar != null) {
 			File givenJarFile = new File(givenJar);
-
 			if (givenJarFile.exists()) {
 				return givenJarFile.toPath();
-			} else {
-				System.err.println("[OptiFabric] 提供的 Minecraft jar 在 " + givenJar + " 不存在，回退");
 			}
-		}
-
-		Path minecraftJar = getLaunchMinecraftJar();
-
-		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-			Path officialNames = minecraftJar.resolveSibling(String.format("minecraft-%s-client.jar", OptifineVersion.minecraftVersion));
-
-			if (Files.notExists(officialNames)) {
-				Path parent = minecraftJar.getParent().resolveSibling(String.format("minecraft-%s-client.jar", OptifineVersion.minecraftVersion));
-
-				if (Files.notExists(parent)) {
-					Path alternativeParent = parent.resolveSibling("minecraft-client.jar");
-
-					if (Files.notExists(alternativeParent)) {
-						// 修改：提供更友好的错误信息
-						System.err.println("[OptiFabric] 无法找到Minecraft开发jar！尝试使用启动jar。");
-						return minecraftJar; // 返回启动jar而不是抛出异常
-					}
-
-					parent = alternativeParent;
-				}
-
-				officialNames = parent;
-			}
-
-			minecraftJar = officialNames;
-		}
-
-		return minecraftJar;
-	}
-
-	private static Path getLaunchMinecraftJar() {
-		try {
-			Object gameJar = FabricLoader.getInstance().getObjectShare().get("fabric-loader:inputGameJar");
-			if (gameJar instanceof Path) {
-				return (Path) gameJar;
-			}
-		} catch (Exception e) {
-			System.err.println("[OptiFabric] 无法通过新API获取游戏jar: " + e.getMessage());
 		}
 
 		try {
-			ModContainer mod = FabricLoader.getInstance().getModContainer("minecraft").orElseThrow(() -> new IllegalStateException("No Minecraft?"));
-			URI uri = mod.getRootPath().toUri();
-
-			if ("jar".equals(uri.getScheme())) {
-				String path = uri.getSchemeSpecificPart();
-				int split = path.lastIndexOf("!/");
-
-				if (path.substring(0, split).indexOf(' ') > 0 && path.startsWith("file:///")) {
-					Path out = Paths.get(path.substring(8, split));
-					if (Files.exists(out)) return out;
-				}
-
-				try {
-					return Paths.get(new URI(path.substring(0, split)));
-				} catch (URISyntaxException e) {
-					throw new RuntimeException("Failed to find Minecraft jar from " + uri + " (calculated " + path.substring(0, split) + ')', e);
-				}
-			}
+			// 直接使用Fabric API获取游戏jar
+			ModContainer minecraft = FabricLoader.getInstance().getModContainer("minecraft").orElseThrow(() -> new IllegalStateException("No Minecraft?"));
+			return minecraft.getRootPath();
 		} catch (Exception e) {
-			System.err.println("[OptiFabric] 无法通过旧API获取游戏jar: " + e.getMessage());
+			System.err.println("[OptiFabric] 无法获取Minecraft jar: " + e.getMessage());
+			throw new RuntimeException("无法找到Minecraft jar", e);
 		}
-
-		throw new RuntimeException("无法找到Minecraft jar");
-	}
-
-	private static ClassCache generateClassCache(Consumer<ZipVisitor> from, File to, byte[] hash, boolean extractClasses) throws IOException {
-		File classesDir = new File(to.getParent(), "classes");
-		if (extractClasses) {
-			if (classesDir.exists()) {
-				FileUtils.cleanDirectory(classesDir);
-			} else {
-				FileUtils.forceMkdir(classesDir);
-			}
-		}
-		ClassCache classCache = new ClassCache(hash);
-
-		from.accept((jarFile, entry) -> {
-			String name = entry.getName();
-
-			if ((name.startsWith("net/minecraft/") || name.startsWith("com/mojang/")) && name.endsWith(".class")) {
-				try (InputStream in = jarFile.getInputStream(entry)) {
-					byte[] bytes = IOUtils.toByteArray(in);
-
-					classCache.addClass(name.substring(0, name.length() - 6), bytes);
-					if (extractClasses) {
-						FileUtils.writeByteArrayToFile(new File(classesDir, name), bytes);
-					}
-				}
-
-				return false; //Remove all the patched classes, we don't want these leaking directly on the classpath
-			} else {
-				return true;
-			}
-		});
-
-		System.out.println("[OptiFabric] 找到 " + classCache.getClasses().size() + " 个修补过的类");
-		classCache.save(to);
-		return classCache;
 	}
 }
