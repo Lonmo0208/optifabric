@@ -89,6 +89,32 @@ public class OptifabricSetup implements Runnable {
 
 		usingScreenAPI = true; // 强制标记使用ScreenAPI
 	}
+	
+	public static boolean isPresent(String modId, String versionRange) {
+		Optional<net.fabricmc.loader.api.ModContainer> modContainer = FabricLoader.getInstance().getModContainer(modId);
+		if (!modContainer.isPresent()) {
+			return false;
+		}
+
+		ModMetadata metadata = modContainer.get().getMetadata();
+		Version currentVersion;
+		try {
+			currentVersion = Version.parse(metadata.getVersion().getFriendlyString());
+			// 简单的版本范围检查实现
+			if (versionRange.startsWith(">=")) {
+				String minVersionStr = versionRange.substring(2);
+				Version minVersion = Version.parse(minVersionStr);
+				return currentVersion.compareTo(minVersion) >= 0;
+			} else if (versionRange.startsWith(">")) {
+				String minVersionStr = versionRange.substring(1);
+				Version minVersion = Version.parse(minVersionStr);
+				return currentVersion.compareTo(minVersion) > 0;
+			}
+			return true;
+		} catch (VersionParsingException e) {
+			return false;
+		}
+	}
 
 	// 移除版本检查方法（不再需要）
 }
