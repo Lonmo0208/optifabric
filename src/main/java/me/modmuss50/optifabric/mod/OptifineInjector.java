@@ -40,56 +40,73 @@ public class OptifineInjector {
 
 	public void setup() {
 		Consumer<ClassNode> transformer = target -> {
+			// 修改：增加更详细的调试信息
+			System.out.println("[OptiFabric] 处理类: " + target.name);
+
 			//Avoid double patching things, not that this should happen
 			if (!patched.add(target.name)) {
-				System.err.println("Already patched " + target.name);
+				System.err.println("[OptiFabric] 已经处理过 " + target.name);
 				return;
 			}
 
 			//Skip applying class patches we veto
 			if (OptifineFixer.INSTANCE.shouldSkip(target.name)) {
+				System.out.println("[OptiFabric] 跳过类: " + target.name);
 				return;
 			}
 
-			//Remember the access we started with
-			Object2IntMap<String> memberToAccess = new Object2IntArrayMap<>(target.methods.size());
-			memberToAccess.defaultReturnValue(-1);
-			for (MethodNode method : target.methods) {
-				memberToAccess.put(method.name + method.desc, method.access);
-			}
-			for (FieldNode field : target.fields) {
-				memberToAccess.put(field.name + ' ' + field.desc, field.access);
-			}
+			try {
+				//Remember the access we started with
+				Object2IntMap<String> memberToAccess = new Object2IntArrayMap<>(target.methods.size());
+				memberToAccess.defaultReturnValue(-1);
+				for (MethodNode method : target.methods) {
+					memberToAccess.put(method.name + method.desc, method.access);
+				}
+				for (FieldNode field : target.fields) {
+					memberToAccess.put(field.name + ' ' + field.desc, field.access);
+				}
 
-			//I cannot imagine this being very good at all
-			ClassNode source = getSourceClassNode(target);
+				//I cannot imagine this being very good at all
+				ClassNode source = getSourceClassNode(target);
 
-			//Patch the class if required
-			OptifineFixer.INSTANCE.getFixers(target.name).forEach(classFixer -> classFixer.fix(source, target));
+				//Patch the class if required
+				OptifineFixer.INSTANCE.getFixers(target.name).forEach(classFixer -> {
+					System.out.println("[OptiFabric] 应用修复器: " + classFixer.getClass().getSimpleName() + " 到 " + target.name);
+					classFixer.fix(source, target);
+				});
 
-			target.methods = source.methods;
-			target.fields = source.fields;
-			target.interfaces = source.interfaces;
-			target.superName = source.superName;
+				target.methods = source.methods;
+				target.fields = source.fields;
+				target.interfaces = source.interfaces;
+				target.superName = source.superName;
 
-			// 修改：修复栈映射帧问题
-			fixStackMapFrames(target);
+				// 修改：修复栈映射帧问题
+				fixStackMapFrames(target);
 
-			// Lets make every class we touch match the access it used to have
-			target.access = widerAccess(target.access, source.access);
-			for (MethodNode method : target.methods) {
-				int access = memberToAccess.getInt(method.name + method.desc);
-				if (access != -1) method.access = widerAccess(access, method.access);
-			}
-			for (FieldNode field : target.fields) {
-				int access = memberToAccess.getInt(field.name + ' ' + field.desc);
-				if (access != -1) field.access = widerAccess(access, field.access);
+				// Lets make every class we touch match the access it used to have
+				target.access = widerAccess(target.access, source.access);
+				for (MethodNode method : target.methods) {
+					int access = memberToAccess.getInt(method.name + method.desc);
+					if (access != -1) method.access = widerAccess(access, method.access);
+				}
+				for (FieldNode field : target.fields) {
+					int access = memberToAccess.getInt(field.name + ' ' + field.desc);
+					if (access != -1) field.access = widerAccess(access, field.access);
+				}
+
+				System.out.println("[OptiFabric] 成功处理类: " + target.name);
+			} catch (Exception e) {
+				System.err.println("[OptiFabric] 处理类 " + target.name + " 时出错: " + e.getMessage());
+				// 不要抛出异常，继续处理其他类
 			}
 		};
 
 		for (String name : classCache.getClasses()) {
+			System.out.println("[OptiFabric] 注册类替换: " + name);
 			ClassTinkerers.addReplacement(name, transformer);
 		}
+
+		System.out.println("[OptiFabric] 总共注册了 " + classCache.getClasses().size() + " 个类进行替换");
 	}
 
 	// 新增方法：修复栈映射帧

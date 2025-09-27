@@ -14,7 +14,16 @@ import org.objectweb.asm.tree.ClassNode;
 
 public class ASMUtils {
 	public static ClassNode readClass(byte[] bytes) {
-		return readClass(new ClassReader(Objects.requireNonNull(bytes, "Cannot read null class bytes")));
+		try {
+			return readClass(new ClassReader(Objects.requireNonNull(bytes, "Cannot read null class bytes")));
+		} catch (Exception e) {
+			System.err.println("[OptiFabric] 读取类时出错，尝试修复...");
+			// 尝试使用更宽松的设置
+			ClassReader reader = new ClassReader(bytes);
+			ClassNode node = new ClassNode();
+			reader.accept(node, ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+			return node;
+		}
 	}
 
 	public static ClassNode readClass(File file) throws IOException {

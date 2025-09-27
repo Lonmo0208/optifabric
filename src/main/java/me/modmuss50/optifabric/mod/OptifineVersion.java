@@ -115,11 +115,18 @@ public class OptifineVersion {
 			return JarType.INTERNAL_ERROR;
 		}
 
-		// 强制绕过版本检查 - 全版本通用
-		// 只输出警告信息，但不阻止加载
+		// 修改：更宽松的版本检查
 		if (!currentMcVersion.equals(minecraftVersion)) {
-			System.out.println("[OptiFabric] 警告: 版本不匹配 - OptiFine需要 " + minecraftVersion + "，但当前运行的是 " + currentMcVersion);
-			System.out.println("[OptiFabric] 警告: 强制注入可能不稳定，请谨慎使用！");
+			System.err.println("[OptiFabric] 警告: 版本不匹配!");
+			System.err.println("[OptiFabric] OptiFine 需要: " + minecraftVersion);
+			System.err.println("[OptiFabric] 当前运行: " + currentMcVersion);
+
+			// 检查是否是次要版本差异（如 1.16.2 vs 1.16.5）
+			if (currentMcVersion.startsWith(minecraftVersion.substring(0, Math.min(minecraftVersion.length(), 6)))) {
+				System.out.println("[OptiFabric] 检测到兼容的次要版本差异，继续加载...");
+			} else {
+				System.err.println("[OptiFabric] 警告: 主要版本不匹配，强制注入可能极其不稳定!");
+			}
 		}
 
 		MutableBoolean isInstaller = new MutableBoolean(false);

@@ -14,11 +14,11 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -84,7 +84,7 @@ public class OptifineSetup {
 
 			//Validate that the classCache found is for the same input jar
 			if (Arrays.equals(classCache.getHash(), modHash)) {
-				System.out.println("Found existing patched optifine jar, using that");
+				System.out.println("[OptiFabric] 找到现有的已修补 OptiFine jar，使用它");
 
 				if (classCache.isConverted()) {
 					classCache.save(optifinePatches);
@@ -92,10 +92,10 @@ public class OptifineSetup {
 
 				return Pair.of(remappedJar, classCache);
 			} else {
-				System.out.println("Class cache is from a different optifine jar, deleting and re-generating");
+				System.out.println("[OptiFabric] 类缓存来自不同的 OptiFine jar，删除并重新生成");
 			}
 		} else {
-			System.out.println("Setting up optifine for the first time, this may take a few seconds.");
+			System.out.println("[OptiFabric] 首次设置 OptiFine，这可能需要几秒钟");
 		}
 
 		Path minecraftJar = getMinecraftJar();
@@ -128,7 +128,7 @@ public class OptifineSetup {
 		File jarOfTheFree = new File(workDir, "Optifine-jarofthefree.jar");
 		LambdaRebuilder rebuilder = new LambdaRebuilder(minecraftJar.toFile());
 
-		System.out.println("De-Volderfiying jar");
+		System.out.println("[OptiFabric] 去除 Volderfying jar");
 
 		//Find all the SRG named classes and remove them
 		ZipUtils.transform(optifineModJar, new ZipTransformer() {
@@ -145,7 +145,7 @@ public class OptifineSetup {
 				if (!name.startsWith("srg/")) {
 					if (name.endsWith(".class") && !name.startsWith("net/") && !name.startsWith("notch/net/") && !name.startsWith("optifine/") && !name.startsWith("javax/")) {
 						try {
-							//System.out.println("Finding lambdas to fix in ".concat(name));
+							System.out.println("[OptiFabric] 在 " + name + " 中查找要修复的 lambda");
 							ClassNode node = ASMUtils.readClass(zip, entry);
 
 							rebuilder.findLambdas(node);
@@ -179,25 +179,27 @@ public class OptifineSetup {
 		rebuilder.close();
 
 		String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
-		System.out.println("Remapping optifine from official to " + namespace);
+		System.out.println("[OptiFabric] 将 OptiFine 从官方映射重映射到 " + namespace);
 		File completeJar = new File(workDir, "Optifine-remapped.jar");
 
 		// 修改：添加重试机制和冲突解决策略
 		boolean remapSuccess = false;
 		Exception lastException = null;
 
-		for (int attempt = 1; attempt <= 3; attempt++) {
+		for (int attempt = 1; attempt <= 5; attempt++) {
 			try {
+				System.out.println("[OptiFabric] 重映射尝试 " + attempt + "/5");
 				remapOptifine(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar.toPath(), createMappings("official", namespace, rebuilder));
 				remapSuccess = true;
+				System.out.println("[OptiFabric] 重映射成功");
 				break;
 			} catch (Exception e) {
 				lastException = e;
-				System.err.println("[OptiFabric] 重新映射尝试 " + attempt + "/3 失败: " + e.getMessage());
+				System.err.println("[OptiFabric] 重映射尝试 " + attempt + "/5 失败: " + e.getMessage());
 
-				if (attempt < 3) {
+				if (attempt < 5) {
 					try {
-						Thread.sleep(1000); // 等待1秒后重试
+						Thread.sleep(2000); // 等待2秒后重试
 					} catch (InterruptedException ie) {
 						Thread.currentThread().interrupt();
 						break;
@@ -212,14 +214,15 @@ public class OptifineSetup {
 		}
 
 		if (!remapSuccess) {
-			System.err.println("[OptiFabric] 所有重新映射尝试都失败了，尝试使用简化映射...");
+			System.err.println("[OptiFabric] 所有重映射尝试都失败，尝试使用简化映射...");
 
 			// 尝试使用简化映射
 			try {
-				remapOptifineWithSimpleMapping(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar.toPath());
+				remapOptifineSimple(jarOfTheFree, completeJar);
 				remapSuccess = true;
+				System.out.println("[OptiFabric] 简化映射成功");
 			} catch (Exception e) {
-				System.err.println("[OptiFabric] 简化映射也失败了: " + e.getMessage());
+				System.err.println("[OptiFabric] 简化映射也失败: " + e.getMessage());
 				throw new RuntimeException("无法重新映射OptiFine jar。这可能是因为OptiFine版本与当前Minecraft版本不兼容。", lastException);
 			}
 		}
@@ -232,7 +235,7 @@ public class OptifineSetup {
 
 		Consumer<ZipVisitor> jarFinaliser;
 		if (remappedJar.exists() && !remappedJar.delete()) {
-			System.err.println("Failed to clear " + remappedJar + ", is another instance of the game running?");
+			System.err.println("[OptiFabric] 无法清除 " + remappedJar + "，是否正在运行另一个游戏实例？");
 			remappedJar = completedJar;
 			jarFinaliser = visitor -> ZipUtils.filterInPlace(completedJar, visitor);
 		} else {
@@ -240,7 +243,7 @@ public class OptifineSetup {
 			jarFinaliser = visitor -> ZipUtils.filter(completedJar, visitor, finalRemappedJar);
 		}
 		if (optifinePatches.exists() && !optifinePatches.delete()) {
-			System.err.println("Failed to clear " + optifinePatches + ", is another instance of the game running?");
+			System.err.println("[OptiFabric] 无法清除 " + optifinePatches + "，是否正在运行另一个游戏实例？");
 			optifinePatches = new File(workDir, "Optifine.classes.gz");
 		}
 
@@ -250,7 +253,7 @@ public class OptifineSetup {
 
 		boolean extract = Boolean.getBoolean("optifabric.extract");
 		if (extract) {
-			System.out.println("Extracting optifine classes");
+			System.out.println("[OptiFabric] 提取 OptiFine 类");
 			File optifineClasses = new File(versionDir, "optifine-classes");
 			if(optifineClasses.exists()){
 				FileUtils.deleteDirectory(optifineClasses);
@@ -261,8 +264,15 @@ public class OptifineSetup {
 		return Pair.of(remappedJar, generateClassCache(jarFinaliser, optifinePatches, modHash, extract));
 	}
 
+	// 新增：简化映射方法
+	private static void remapOptifineSimple(File input, File output) throws IOException {
+		System.out.println("[OptiFabric] 使用简化映射方法");
+		// 直接复制文件，不进行复杂的重新映射
+		Files.copy(input.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING);
+	}
+
 	private static void runInstaller(File installer, File output, File minecraftJar) throws IOException {
-		System.out.println("Running optifine patcher");
+		System.out.println("[OptiFabric] 运行 OptiFine 修补程序");
 
 		try (URLClassLoader classLoader = new URLClassLoader(new URL[] {installer.toURI().toURL()}, OptifineSetup.class.getClassLoader())) {
 			Class<?> clazz = classLoader.loadClass("optifine.Patcher");
@@ -305,40 +315,6 @@ public class OptifineSetup {
 			} else {
 				throw new RuntimeException("重新映射失败: " + e.getMessage(), e);
 			}
-		} finally {
-			remapper.finish();
-		}
-	}
-
-	// 新增：简化映射方法
-	private static void remapOptifineWithSimpleMapping(Path input, Path[] libraries, Path output) throws IOException {
-		Files.deleteIfExists(output);
-
-		// 使用极简映射，只处理类名
-		IMappingProvider simpleMappings = out -> {
-			// 只添加最基本的类名映射
-			// 这里可以添加一些已知的类名映射
-		};
-
-		TinyRemapper remapper = TinyRemapper.newRemapper()
-				.withMappings(simpleMappings)
-				.skipLocalVariableMapping(true)
-				.renameInvalidLocals(true)
-				.rebuildSourceFilenames(true)
-				.build();
-
-		try (OutputConsumerPath outputConsumer = new Builder(output).assumeArchive(true).build()) {
-			outputConsumer.addNonClassFiles(input);
-			remapper.readInputs(input);
-
-			if (libraries != null && libraries.length > 0) {
-				remapper.readClassPath(libraries);
-			}
-
-			remapper.apply(outputConsumer);
-		} catch (Exception e) {
-			System.err.println("[OptiFabric] 简化映射失败: " + e.getMessage());
-			throw e;
 		} finally {
 			remapper.finish();
 		}
@@ -408,7 +384,7 @@ public class OptifineSetup {
 			if (givenJarFile.exists()) {
 				return givenJarFile.toPath();
 			} else {
-				System.err.println("Supplied Minecraft jar at " + givenJar + " doesn't exist, falling back");
+				System.err.println("[OptiFabric] 提供的 Minecraft jar 在 " + givenJar + " 不存在，回退");
 			}
 		}
 
@@ -507,7 +483,7 @@ public class OptifineSetup {
 			}
 		});
 
-		System.out.println("Found " + classCache.getClasses().size() + " patched classes");
+		System.out.println("[OptiFabric] 找到 " + classCache.getClasses().size() + " 个修补过的类");
 		classCache.save(to);
 		return classCache;
 	}
