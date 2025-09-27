@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
@@ -53,7 +54,6 @@ import net.fabricmc.tinyremapper.IMappingProvider;
 import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.IMappingProvider.Member;
-import net.fabricmc.tinyremapper.TinyRemapper.InputTag;
 
 import me.modmuss50.optifabric.patcher.ClassCache;
 import me.modmuss50.optifabric.patcher.LambdaRebuilder;
@@ -436,10 +436,11 @@ public class OptifabricSetup implements Runnable {
 				.withMappings(mappings)
 				.build()) {
 
-			remapper.read(input, false, (InputTag[]) null);
+			// 移除InputTag引用，直接传递null
+			remapper.read(input, false, null);
 
 			for (Path lib : libraries) {
-				remapper.read(lib, false, (InputTag[]) null);
+				remapper.read(lib, false, null);
 			}
 
 			try (OutputConsumerPath outputConsumer = new OutputConsumerPath.Builder(output).build()) {
@@ -489,7 +490,7 @@ public class OptifabricSetup implements Runnable {
 	}
 
 	private static Path[] getLibs(Path minecraftJar) {
-		Set<Path> libs = new java.util.HashSet<>();
+		Set<Path> libs = new HashSet<>();
 		for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
 			mod.getModFile().getNestedJars().forEach(nested -> libs.add(nested.getFilePath()));
 			libs.add(mod.getModFile().getFilePath());
