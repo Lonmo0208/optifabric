@@ -7,6 +7,8 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import org.apache.commons.io.IOUtils;
+
 import net.fabricmc.loader.api.FabricLoader;
 
 import com.chocohead.mm.api.ClassTinkerers;
@@ -51,7 +53,8 @@ public class EmergencyLoader {
 
     private static void loadClassFromJar(JarFile jar, JarEntry entry, String className) {
         try (InputStream in = jar.getInputStream(entry)) {
-            byte[] bytes = in.readAllBytes();
+            // 修复：使用IOUtils.toByteArray()替代readAllBytes()以兼容Java 8
+            byte[] bytes = IOUtils.toByteArray(in);
 
             // 使用ClassTinkerers提前加载类
             ClassTinkerers.define(className.replace(".", "/"), bytes);

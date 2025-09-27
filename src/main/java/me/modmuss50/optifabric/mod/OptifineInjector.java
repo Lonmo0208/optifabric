@@ -101,7 +101,8 @@ public class OptifineInjector {
 			}
 		};
 
-		for (String name : classCache.getClasses()) {
+		// 修复：使用keySet()来迭代Map的键
+		for (String name : classCache.getClasses().keySet()) {
 			System.out.println("[OptiFabric] 注册类替换: " + name);
 			ClassTinkerers.addReplacement(name, transformer);
 		}

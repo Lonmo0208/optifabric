@@ -3,6 +3,7 @@ package me.modmuss50.optifabric.patcher;
 import java.io.*;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ClassCache {
@@ -28,6 +29,11 @@ public class ClassCache {
 
 	public Map<String, byte[]> getClasses() {
 		return Collections.unmodifiableMap(classes);
+	}
+
+	// 新增方法：获取类名集合，便于迭代
+	public Set<String> getClassNames() {
+		return classes.keySet();
 	}
 
 	public byte[] getHash() {
