@@ -38,18 +38,13 @@ public class OptifineInjector {
 
 	public void setup() {
 		Consumer<ClassNode> transformer = target -> {
-			//Avoid double patching things, not that this should happen
-			if (!patched.add(target.name)) {
+			// 移除双重检查，强制处理所有类
+			if (patched.contains(target.name)) {
 				System.err.println("Already patched " + target.name);
-				return;
 			}
+			patched.add(target.name);
 
-			//Skip applying class patches we veto
-			if (OptifineFixer.INSTANCE.shouldSkip(target.name)) {
-				return;
-			}
-
-			//Remember the access we started with
+			// 完全移除类修补拦截逻辑
 			Object2IntMap<String> memberToAccess = new Object2IntArrayMap<>(target.methods.size());
 			memberToAccess.defaultReturnValue(-1);
 			for (MethodNode method : target.methods) {
@@ -59,10 +54,9 @@ public class OptifineInjector {
 				memberToAccess.put(field.name + ' ' + field.desc, field.access);
 			}
 
-			//I cannot imagine this being very good at all
 			ClassNode source = getSourceClassNode(target);
 
-			//Patch the class if required
+			// 强制应用所有修复器
 			OptifineFixer.INSTANCE.getFixers(target.name).forEach(classFixer -> classFixer.fix(source, target));
 
 			target.methods = source.methods;
@@ -70,7 +64,6 @@ public class OptifineInjector {
 			target.interfaces = source.interfaces;
 			target.superName = source.superName;
 
-			//Classes should be read with frames expanded (as Mixin itself does it), in which case this should all be fine
 			for (MethodNode methodNode : target.methods) {
 				for (AbstractInsnNode insnNode : methodNode.instructions.toArray()) {
 					if (insnNode instanceof FrameNode) {
@@ -82,7 +75,6 @@ public class OptifineInjector {
 				}
 			}
 
-			// Lets make every class we touch match the access it used to have
 			target.access = widerAccess(target.access, source.access);
 			for (MethodNode method : target.methods) {
 				int access = memberToAccess.getInt(method.name + method.desc);
@@ -103,24 +95,24 @@ public class OptifineInjector {
 		if (!Modifier.isFinal(origin)) target &= ~Modifier.FINAL;
 
 		switch (target & 0x7) {
-		case Modifier.PUBLIC:
-			return target;
+			case Modifier.PUBLIC:
+				return target;
 
-		case Modifier.PROTECTED:
-			return Modifier.isPublic(origin) ? (target & (~0x7)) | Modifier.PUBLIC : target;
+			case Modifier.PROTECTED:
+				return Modifier.isPublic(origin) ? (target & (~0x7)) | Modifier.PUBLIC : target;
 
-		case 0:
-			return Modifier.isPrivate(origin) ? target : (target & (~0x7)) | (origin & 0x7);
+			case 0:
+				return Modifier.isPrivate(origin) ? target : (target & (~0x7)) | (origin & 0x7);
 
-		case Modifier.PRIVATE:
-			return (target & (~0x7)) | (origin & 0x7);
+			case Modifier.PRIVATE:
+				return (target & (~0x7)) | (origin & 0x7);
 
-		default:
-			if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-				throw new AssertionError("Unexpected access: " + target + " (transformed from " + origin + ')');
-			}
+			default:
+				if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+					throw new AssertionError("Unexpected access: " + target + " (transformed from " + origin + ')');
+				}
 
-			return target;
+				return target;
 		}
 	}
 
