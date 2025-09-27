@@ -36,7 +36,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.RecordComponentNode;
@@ -54,7 +53,7 @@ import net.fabricmc.tinyremapper.IMappingProvider;
 import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.IMappingProvider.Member;
-import net.fabricmc.tinyremapper.OutputConsumerPath.Builder;
+import net.fabricmc.tinyremapper.TinyRemapper.InputTag;
 
 import me.modmuss50.optifabric.patcher.ClassCache;
 import me.modmuss50.optifabric.patcher.LambdaRebuilder;
@@ -62,8 +61,8 @@ import me.modmuss50.optifabric.util.ASMUtils;
 import me.modmuss50.optifabric.util.RemappingUtils;
 import me.modmuss50.optifabric.util.ZipUtils;
 import me.modmuss50.optifabric.util.ZipUtils.ZipTransformer;
+import me.modmuss50.optifabric.util.ZipUtils.ZipVisitor;
 
-// 完整修复版：解决所有编译错误，确保构建通过
 public class OptifabricSetup implements Runnable {
 	public static File optifineRuntimeJar = null;
 	public static boolean usingScreenAPI;
@@ -187,7 +186,6 @@ public class OptifabricSetup implements Runnable {
 		usingScreenAPI = true;
 	}
 
-	// 修复：完善版本检查方法，补充Predicate导入
 	public static boolean isPresent(String modId) {
 		return FabricLoader.getInstance().isModLoaded(modId);
 	}
@@ -201,12 +199,11 @@ public class OptifabricSetup implements Runnable {
 
 		Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(modId);
 		ModMetadata modMetadata = modContainer.map(ModContainer::getMetadata).orElseThrow(() ->
-				new RuntimeException("Failed to get mod container for " + modId + ", something has broke badly.")
+				new RuntimeException("Failed to get mod container for " + modId)
 		);
 		return extraChecks.test(modMetadata);
 	}
 
-	// 版本比较逻辑
 	private static boolean compareVersions(String versionRange, ModMetadata mod) {
 		try {
 			String currentVersion = mod.getVersion().getFriendlyString();
@@ -247,7 +244,6 @@ public class OptifabricSetup implements Runnable {
 		}
 	}
 
-	// 版本号数字比较
 	private static int compareVersionNumbers(String version1, String version2) {
 		String[] parts1 = version1.split("[.-]");
 		String[] parts2 = version2.split("[.-]");
@@ -263,7 +259,6 @@ public class OptifabricSetup implements Runnable {
 		return 0;
 	}
 
-	// 解析版本片段数字
 	private static int parseVersionPart(String part) {
 		StringBuilder number = new StringBuilder();
 		for (char c : part.toCharArray()) {
@@ -276,10 +271,8 @@ public class OptifabricSetup implements Runnable {
 		return number.length() > 0 ? Integer.parseInt(number.toString()) : 0;
 	}
 
-	// 完整的getRuntime()方法，修复lambda变量捕获问题
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("deprecation")
 	public static Pair<File, ClassCache> getRuntime() throws IOException {
-		@SuppressWarnings("deprecation")
 		File workingDir = new File(FabricLoader.getInstance().getGameDirectory(), ".optifine");
 		if (!workingDir.exists()) {
 			FileUtils.forceMkdir(workingDir);
@@ -396,16 +389,13 @@ public class OptifabricSetup implements Runnable {
 			completeJar = transformed;
 		}
 
-		// 修复lambda变量捕获问题：使用final副本
-		final File finalCompleteJar = completeJar;
-		Consumer<ZipUtils.ZipVisitor> jarFinaliser;
+		Consumer<ZipVisitor> jarFinaliser;
 		if (remappedJar.exists() && !remappedJar.delete()) {
 			System.err.println("Warning: Could not delete old jar, using temp jar");
 			remappedJar = completeJar;
-			jarFinaliser = v -> ZipUtils.filterInPlace(finalCompleteJar, v);
+			jarFinaliser = v -> ZipUtils.filterInPlace(completeJar, v);
 		} else {
-			final File finalRemappedJar = remappedJar;
-			jarFinaliser = v -> ZipUtils.filter(finalCompleteJar, v, finalRemappedJar);
+			jarFinaliser = v -> ZipUtils.filter(completeJar, v, remappedJar);
 		}
 
 		if (optifinePatches.exists() && !optifinePatches.delete()) {
@@ -414,9 +404,7 @@ public class OptifabricSetup implements Runnable {
 		}
 
 		workDir.deleteOnExit();
-		for (File file : workDir.listFiles()) {
-			if (file != null) file.deleteOnExit();
-		}
+		for (File file : workDir.listFiles()) file.deleteOnExit();
 
 		boolean extract = Boolean.getBoolean("optifabric.extract");
 		if (extract) {
@@ -431,83 +419,99 @@ public class OptifabricSetup implements Runnable {
 		return Pair.of(remappedJar, generateClassCache(jarFinaliser, optifinePatches, modHash, extract));
 	}
 
-	// 补充缺失的辅助方法实现
-	private static Path getMinecraftJar() throws IOException {
-		Optional<ModContainer> minecraftContainer = FabricLoader.getInstance().getModContainer("minecraft");
-		if (minecraftContainer.isPresent()) {
-			return minecraftContainer.get().getOrigin().getPaths().get(0);
-		}
-		throw new IOException("Minecraft jar not found");
-	}
-
 	private static void runInstaller(File installer, File output, File minecraftJar) throws IOException {
 		System.out.println("Running optifine patcher");
+
 		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{installer.toURI().toURL()}, OptifabricSetup.class.getClassLoader())) {
 			Class<?> clazz = classLoader.loadClass("optifine.Patcher");
 			Method method = clazz.getDeclaredMethod("process", File.class, File.class, File.class);
 			method.invoke(null, minecraftJar, installer, output);
 		} catch (ReflectiveOperationException | MalformedURLException e) {
-			throw new RuntimeException("Error running OptiFine patcher", e);
+			throw new RuntimeException("Error running OptiFine patcher at " + installer + " on " + minecraftJar, e);
 		}
 	}
 
-	private static Path[] getLibs(Path minecraftJar) {
-		return FabricLoader.getInstance().getAllMods().stream()
-				.flatMap(mod -> mod.getOrigin().getPaths().stream())
-				.filter(path -> !path.equals(minecraftJar))
-				.toArray(Path[]::new);
-	}
-
 	private static void remapOptifine(Path input, Path[] libraries, Path output, IMappingProvider mappings) throws IOException {
-		TinyRemapper remapper = TinyRemapper.newRemapper()
+		try (TinyRemapper remapper = TinyRemapper.newRemapper()
 				.withMappings(mappings)
-				.build();
+				.build()) {
 
-		try (OutputConsumerPath consumer = new OutputConsumerPath.Builder(output).build()) {
-			consumer.addNonClassFiles(input);
-			remapper.read(input);
+			remapper.read(input, false, (InputTag[]) null);
+
 			for (Path lib : libraries) {
-				remapper.read(lib);
+				remapper.read(lib, false, (InputTag[]) null);
 			}
-			remapper.apply(consumer);
-		} finally {
-			remapper.finish();
+
+			try (OutputConsumerPath outputConsumer = new OutputConsumerPath.Builder(output).build()) {
+				outputConsumer.addNonClassFiles(input);
+				remapper.apply(outputConsumer);
+			}
 		}
 	}
 
 	private static IMappingProvider createMappings(String from, String to, LambdaRebuilder rebuilder) {
-		return (out) -> {
-			TinyTree tree = FabricLoader.getInstance().getMappingResolver().getTinyTree();
-			for (ClassDef classDef : tree.getClasses()) {
-				out.acceptClass(classDef.getName(from), classDef.getName(to));
-				for (FieldDef fieldDef : classDef.getFields()) {
-					out.acceptField(classDef.getName(from), fieldDef.getName(from), fieldDef.getDescriptor(from),
-							fieldDef.getName(to), fieldDef.getDescriptor(to));
+		TinyTree tree = FabricLoader.getInstance().getMappingManager().getTinyTree();
+
+		return out -> {
+			tree.accept(new IMappingProvider() {
+				@Override
+				public void load(MappingAcceptor acceptor) {
+					for (ClassDef classDef : tree.getClasses()) {
+						for (FieldDef fieldDef : classDef.getFields()) {
+							Member fieldMember = new Member(
+									classDef.getName(from),
+									fieldDef.getName(from),
+									fieldDef.getDescriptor(from)
+							);
+							acceptor.acceptField(fieldMember, fieldDef.getName(to));
+						}
+
+						for (MethodDef methodDef : classDef.getMethods()) {
+							Member methodMember = new Member(
+									classDef.getName(from),
+									methodDef.getName(from),
+									methodDef.getDescriptor(from)
+							);
+							acceptor.acceptMethod(methodMember, methodDef.getName(to));
+						}
+					}
 				}
-				for (MethodDef methodDef : classDef.getMethods()) {
-					out.acceptMethod(classDef.getName(from), methodDef.getName(from), methodDef.getDescriptor(from),
-							methodDef.getName(to), methodDef.getDescriptor(to));
-				}
-			}
-			rebuilder.getMappings().forEach((member, name) -> {
-				out.acceptMethod(member.owner, member.name, member.desc, name, member.desc);
 			});
 		};
 	}
 
-	private static ClassCache generateClassCache(Consumer<ZipUtils.ZipVisitor> jarFinaliser, File patchesFile, byte[] hash, boolean extract) throws IOException {
+	private static Path getMinecraftJar() {
+		Optional<ModContainer> minecraftContainer = FabricLoader.getInstance().getModContainer("minecraft");
+		if (minecraftContainer.isPresent()) {
+			return minecraftContainer.get().getModFile().getFilePath();
+		}
+		throw new IllegalStateException("Minecraft mod container not found");
+	}
+
+	private static Path[] getLibs(Path minecraftJar) {
+		Set<Path> libs = new java.util.HashSet<>();
+		for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
+			mod.getModFile().getNestedJars().forEach(nested -> libs.add(nested.getFilePath()));
+			libs.add(mod.getModFile().getFilePath());
+		}
+		libs.remove(minecraftJar);
+		return libs.toArray(new Path[0]);
+	}
+
+	private static ClassCache generateClassCache(Consumer<ZipVisitor> jarFinaliser, File patchesFile, byte[] hash, boolean extract) throws IOException {
 		ClassCache cache = new ClassCache(hash);
 		jarFinaliser.accept((zip, entry) -> {
 			String name = entry.getName();
-			if (name.endsWith(".class") && !entry.isDirectory()) {
-				try (InputStream is = zip.getInputStream(entry)) {
-					cache.addClass(name, IOUtils.toByteArray(is));
+			if (name.endsWith(".class") && !name.startsWith("META-INF/")) {
+				try (InputStream in = zip.getInputStream(entry)) {
+					cache.putClass(name, IOUtils.toByteArray(in));
 				} catch (IOException e) {
 					throw new UncheckedIOException(e);
 				}
 			}
 			return true;
 		});
+
 		cache.save(patchesFile);
 		return cache;
 	}
