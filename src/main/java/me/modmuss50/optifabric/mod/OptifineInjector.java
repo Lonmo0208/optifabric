@@ -175,6 +175,13 @@ public class OptifineInjector {
 		if(bytes == null) {
 			throw new RuntimeException("Failed to find patched class for: " + classNode.name);
 		}
+
+		// 添加紧急修复检查
+		if (EmergencyFix.needsEmergencyFix(classNode.name)) {
+			System.out.println("[OptiFabric] 对 " + classNode.name + " 应用紧急修复");
+			bytes = EmergencyFix.fixDefClass(bytes);
+		}
+
 		return ASMUtils.readClass(bytes);
 	}
 }
