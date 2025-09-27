@@ -31,7 +31,7 @@ public class OptifineVersion {
 	public static File findOptifineJar() throws IOException {
 		@SuppressWarnings("deprecation")
 		File modsDir = new File(FabricLoader.getInstance().getGameDirectory(), "mods");
-		File[] mods = modsDir.listFiles();
+		File[] mods = modssDir.listFiles();
 
 		if (mods != null) {
 			File optifineJar = null;
@@ -70,9 +70,9 @@ public class OptifineVersion {
 	private static JarType getJarType(File file) throws IOException {
 		ClassNode classNode;
 		try (JarFile jarFile = new JarFile(file)) {
-			JarEntry jarEntry = jarFile.getJarEntry("net/optifine/Config.class"); //F1 (1.14.2) - G9 location
+			JarEntry jarEntry = jarFile.getJarEntry("net/optifine/Config.class");
 			if (jarEntry == null) {
-				jarEntry = jarFile.getJarEntry("notch/net/optifine/Config.class"); //H1 (1.17.1) location
+				jarEntry = jarFile.getJarEntry("notch/net/optifine/Config.class");
 			}
 			if (jarEntry == null) {
 				return JarType.SOMETHING_ELSE;
@@ -97,30 +97,7 @@ public class OptifineVersion {
 			return JarType.INCOMPATIBLE;
 		}
 
-		String currentMcVersion = "unknown";
-		try (JsonReader in = new JsonReader(new InputStreamReader(OptifineVersion.class.getResourceAsStream("/version.json")))) {
-			in.beginObject();
-
-			while (in.hasNext()) {
-				if ("id".equals(in.nextName())) {
-					currentMcVersion = in.nextString();
-					break;
-				} else {
-					in.skipValue();
-				}
-			}
-		} catch (IOException | IllegalStateException e) {
-			OptifabricError.setError(e, "Failed to find current minecraft version, please report this");
-			e.printStackTrace();
-			return JarType.INTERNAL_ERROR;
-		}
-
-		if (!currentMcVersion.equals(minecraftVersion)) {
-			OptifabricError.setError("This version of OptiFine from %s is not compatible with the current minecraft version\n\nOptifine requires %s you are running %s",
-										file, minecraftVersion, currentMcVersion);
-			return JarType.INCOMPATIBLE;
-		}
-
+		// 移除版本兼容性检查（核心修改点）
 		MutableBoolean isInstaller = new MutableBoolean(false);
 		ZipUtils.iterateContents(file, (zip, zipEntry) -> {
 			if (zipEntry.getName().startsWith("patch/")) {
