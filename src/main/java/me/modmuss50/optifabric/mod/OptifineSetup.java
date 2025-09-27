@@ -106,7 +106,7 @@ public class OptifineSetup {
 		Path minecraftJar = getMinecraftJar();
 		File workDir = Files.createTempDirectory("optifabric").toFile();
 
-		if (OptifineVersion.jarType == JarType.OPTIFINE_INSTALLER) {
+		if (OptifineVersion.jarType == OptifineVersion.JarType.OPTIFINE_INSTALLER) {
 			File optifineMod = new File(workDir, "Optifine-mod.jar");
 
 			out: if (!optifineMod.exists() || !ZipUtils.isValid(optifineMod)) {
@@ -121,7 +121,7 @@ public class OptifineSetup {
 					break out; //Produced a valid extracted jar
 				}
 
-				OptifineVersion.jarType = JarType.CORRUPT_ZIP;
+				OptifineVersion.jarType = OptifineVersion.JarType.CORRUPT_ZIP;
 				OptifabricError.setError("OptiFine installer keeps producing corrupt jars!\nRan: %s 3 times\nMinecraft jar: %s", optifineModJar, minecraftJar);
 				throw new ZipException("Ran OptiFine installer (" + optifineModJar + ") three times without a valid jar produced");
 			}

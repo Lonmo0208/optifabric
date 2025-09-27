@@ -391,7 +391,7 @@ public class OptifabricSetup implements Runnable {
 		// 强制重映射（忽略版本差异，按当前Minecraft的映射规则）
 		String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
 		File completeJar = new File(workDir, "Optifine-remapped.jar");
-		remapOptifine(jarOfTheFree, getLibs(minecraftJar), completeJar, createMappings("official", namespace, new LambdaRebuilder(minecraftJar.toFile())));
+		remapOptifine(jarOfTheFree.toPath(), getLibs(minecraftJar), completeJar, createMappings("official", namespace, new LambdaRebuilder(minecraftJar.toFile())));
 
 		// 应用外部Transformer（如其他 mods 的OptiFabric扩展）
 		for (UnaryOperator<File> transformer : FabricLoader.getInstance().getEntrypoints("optifabric:transformer", UnaryOperator.class)) {
